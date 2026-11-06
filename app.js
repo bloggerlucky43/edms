@@ -7,6 +7,7 @@ const TODAY = '2026-11-05';
 const STORAGE_KEY = 'registry-design-prototype-v1';
 const pageNames = {dashboard:'Office workbench',journeys:'File journeys',repository:'Document repository',approvals:'My approvals',intake:'Smart intake',archive:'Ask the Archive',leadership:'Command view',admin:'Administration',modules:'Framework modules',captureops:'Capture operations',repositorytools:'Repository workspace',discovery:'Search & discovery',workflows:'Workflow studio',teamwork:'Collaboration',correspondence:'Registry & correspondence',access:'Security & access',records:'Records lifecycle',reports:'Reporting centre',intelligence:'Intelligence lab',integrations:'Integration centre',platform:'Platform & administration',public:'Public submission preview',verify:'Letter verification preview'};
 const departments = ['Human Resources', 'Finance & Accounts', 'General Administration', 'Policy & Planning'];
+Object.assign(pageNames,{landing:'OHCSF EDMS',login:'Officer sign-in',mfa:'Verification preview'});
 const route = ['Registry', 'Reviewing officer', 'Director', 'Permanent Secretary', 'Archive'];
 const seedRecords = [
   {id:'REG/2026/0148',title:'Request for staff training approval',department:'Human Resources',type:'Memo',status:'Pending',due:'2026-11-04',date:'2026-11-02',owner:'Amina Bello',sender:'Director of Human Resources',level:'Internal',step:2,summary:'Approval requested for a three-day records management workshop for 18 officers. The proposed programme focuses on digital filing, classification and document handling.',file:'Staff_training_request.pdf'},
@@ -89,6 +90,7 @@ function syncShell() {
   });
 }
 function render() {
+  document.body.classList.toggle('fx-entry',['landing','login','mfa','public','verify'].includes(state.page));
   const pages = {dashboard:dashboardPage,journeys:journeysPage,repository:repositoryPage,approvals:approvalsPage,intake:intakePage,archive:archivePage,leadership:leadershipPage,admin:adminPage,...frameworkPages};
   $('#main').innerHTML = pages[state.page]();
   decoratePrototype();
@@ -280,6 +282,7 @@ function openDocument(id,tab='brief') {
   state.docID = id; state.docTab = tab;
   const tabs = `<div class="tabs doc-tabs">${[['brief','Decision brief'],['preview','Source document'],['history','Activity & minutes'],['versions',`Versions (${record.version})`]].map(([key,label]) => button(label,'doc-tab',`tab ${tab === key ? 'active' : ''}`,`data-tab="${key}" aria-pressed="${tab === key}"`)).join('')}</div>`;
   let actions = `<span class="left-note">${icon('lock')} Sample workflow &middot; no live signature</span>`;
+  if (record.status !== 'Archived') actions += button(`${icon('shield')} E-sign document`,'e-sign','btn');
   if (record.status === 'Pending') actions += `${button(`${icon('return')} Return for correction`,'return','btn btn-danger')}${button(`${icon('check')} ${record.step < 3 ? 'Approve & forward' : 'Approve document'}`,'approve','btn btn-primary')}`;
   if (record.status === 'Correction') actions += button(`${icon('upload')} Correct & resubmit`,'resubmit','btn btn-primary');
   if (record.status === 'Approved') actions += button(`${icon('folder')} Archive document`,'archive-document','btn btn-primary');
@@ -392,6 +395,7 @@ document.addEventListener('click',event => {
     case 'trace-file': state.journeyID = trigger.dataset.id; if ($('.modal')) closeModal(false); navigate('journeys'); break;
     case 'select-journey': state.journeyID = trigger.dataset.id; render(); break;
     case 'draft-minute': minuteDraftDialog(); break;
+    case 'e-sign': openFeature('signature'); break;
     case 'follow-up': followUpDialog(trigger.dataset.id); break;
     case 'office-brief': officeBriefModal(); break;
     case 'inspect-desk': {const step = Number(trigger.dataset.step); const records = pending().filter(record => record.step === step); showModal(`${route[step]}: the visible queue.`,'Current sample desk positions, not live officer monitoring.',`${records.map(taskRow).join('') || emptyState('check','No files waiting here','There are no pending records at this desk in the sample workflow.')}<div class="notice" style="margin-top:18px">${icon('help')}<span>A queue tells you where a file is, not why it is delayed. Check the recorded minutes before drawing a conclusion.</span></div>`); break;}
@@ -475,8 +479,8 @@ document.addEventListener('keydown',event => {
 $('#modal-root').addEventListener('click',event => { if (event.target.classList.contains('modal-overlay')) closeModal(); });
 window.addEventListener('hashchange',() => {
   const page = location.hash.slice(1);
-  state.page = Object.hasOwn(pageNames,page) ? page : 'dashboard';
+  state.page = Object.hasOwn(pageNames,page) ? page : 'landing';
   clearTimeout(archiveTimer); closeMenu(); if ($('.modal')) closeModal(false); render(); window.scrollTo(0,0); $('#main').focus({preventScroll:true});
 });
-state.page = Object.hasOwn(pageNames,location.hash.slice(1)) ? location.hash.slice(1) : 'dashboard';
+state.page = Object.hasOwn(pageNames,location.hash.slice(1)) ? location.hash.slice(1) : 'landing';
 window.addEventListener('DOMContentLoaded',render);
