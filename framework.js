@@ -37,14 +37,20 @@ function decoratePrototype() {
   document.querySelectorAll('.source-paper-header').forEach(element => {element.textContent = 'OHCSF / FEDERAL REPUBLIC OF NIGERIA';});
   document.querySelectorAll('.office-brief-paper>.eyebrow').forEach(element => {element.textContent = 'OHCSF / DEMONSTRATION BRIEFING NOTE';});
   document.querySelectorAll('.preview-toolbar').forEach(element => {if (!element.querySelector('.fx-file-notice')) element.insertAdjacentHTML('beforeend','<span class="fx-file-notice">Fictional illustration only</span>');});
-  const endorsement = state.docID && fx.config[`signature-${state.docID}`];
+  const record = state.docID && getRecord(state.docID);
+  const endorsement = record && fx.config[`signature-${record.id}`];
   const paper = document.querySelector('.letter-paper');
-  if (paper && endorsement && !paper.querySelector('.fx-signed-document')) paper.insertAdjacentHTML('beforeend',`<div class="fx-signed-document"><span class="eyebrow">ELECTRONIC SIGNATURE / DEMONSTRATION ONLY</span>${endorsement.image ? `<img src="${endorsement.image}" alt="Fictional drawn signature preview"/>` : `<strong class="fx-written-signature">${escapeHTML(endorsement.signer)}</strong>`}<p>${escapeHTML(endorsement.designation)} / ${escapeHTML(endorsement.date)}</p><small>NOT A LEGALLY BINDING SIGNATURE / NO CERTIFICATE OR IDENTITY VALIDATION</small></div>`);
+  if (paper && endorsement && !paper.querySelector('.fx-signed-document')) paper.insertAdjacentHTML('beforeend',`<div class="fx-signed-document"><span class="eyebrow">ELECTRONIC SIGNATURE / DEMONSTRATION ONLY</span>${endorsement.image ? `<img src="${endorsement.image}" alt="Fictional drawn signature preview"/>` : `<strong class="fx-written-signature">${escapeHTML(endorsement.signer)}</strong>`}<p>${escapeHTML(endorsement.designation)} / ${escapeHTML(endorsement.date)} / Signed version ${endorsement.version || 1}.0</p>${(endorsement.version || 1) !== record.version ? `<p><strong>Historical signature only. Current version ${record.version}.0 is not covered by this signature.</strong></p>` : ''}<small>NOT A LEGALLY BINDING SIGNATURE / NO CERTIFICATE OR IDENTITY VALIDATION</small></div>`);
+}
+function signatureVersionHistory(record) {
+  const latest = fx.config[`signature-${record.id}`];
+  const signatures = fx.config[`signatures-${record.id}`] || (latest ? [latest] : []);
+  return signatures.length ? `<section class="panel panel-padding"><h3>Recorded E-signatures</h3>${signatures.map(signature => `<div class="role-item"><span class="avatar">v${signature.version || 1}</span><div><strong>${escapeHTML(signature.signer)}</strong><small>${escapeHTML(signature.designation)} / ${escapeHTML(signature.mode)} / ${escapeHTML(signature.date)} / Version ${signature.version || 1}.0</small></div></div>`).join('')}<p class="subtle">Earlier signatures are retained as historical endorsements, not signatures of revised versions. Demonstration only.</p></section>` : '';
 }
 function fxButton(label,feature,style='btn btn-sm') {return button(label,'fx-open',style,`data-feature="${feature}"`);}
 function fxNotice(text='Design prototype only. These controls use fictional metadata; no live files, accounts, messages or government systems are affected.') {return `<div class="notice fx-notice">${icon('shield')}<span>${text}</span></div>`;}
 function fxTable(headers,rows) {return `<div class="panel table-wrap"><table class="document-table"><thead><tr>${headers.map(header => `<th scope="col">${header}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${headers.length}">No demonstration entries yet.</td></tr>`}</tbody></table></div>`;}
-function recordOptions() {return data.records.map(record => `<option value="${escapeHTML(record.id)}">${escapeHTML(record.id)} / ${escapeHTML(record.title)}</option>`).join('');}
+function recordOptions() {return visibleRecords().map(record => `<option value="${escapeHTML(record.id)}">${escapeHTML(record.id)} / ${escapeHTML(record.title)}</option>`).join('');}
 function field(label,name,type='text',value='',choices=[]) {
   const id = `fx-${name}`;
   return `<div class="field"><label for="${id}">${label}</label>${type === 'select' ? `<select id="${id}" name="${name}">${choices.map(choice => `<option value="${escapeHTML(choice)}" ${choice === value ? 'selected' : ''}>${escapeHTML(choice)}</option>`).join('')}</select>` : type === 'record' ? `<select id="${id}" name="${name}">${recordOptions()}</select>` : type === 'textarea' ? `<textarea id="${id}" name="${name}" required maxlength="1200">${escapeHTML(value)}</textarea>` : `<input id="${id}" type="${type}" name="${name}" value="${escapeHTML(value)}" ${type === 'number' ? 'min="0" max="100"' : 'maxlength="160"'} required/>`}</div>`;
@@ -69,7 +75,7 @@ function moduleHighlights(module) {
   if (module.page === 'records') return fxTable(['Category','Illustrative retention','Disposition'],fx.retention.map(rule => [escapeHTML(rule.category),rule.years ? `${rule.years} years` : 'Permanent',escapeHTML(rule.action)]));
   if (module.page === 'access') return `<div class="fx-two-column"><div class="panel panel-padding"><p class="eyebrow">DESIGNING TRUST</p><h2 class="fx-serif">The right officer.<br>The right level of access.</h2><p>Preview authentication, role permissions, document handling and audit evidence without entering real credentials.</p>${fxButton('Try the sign-in journey','signin','btn btn-primary')}</div><div class="panel panel-padding"><p class="eyebrow">POLICY IS NOT ENFORCEMENT</p><h2 class="fx-serif">Visible safeguards.<br>Honest boundaries.</h2><p>Policies here are editable illustrations. They do not encrypt documents, enforce real access or authenticate a civil servant.</p>${fxButton('Inspect the access matrix','permissions','btn')}</div></div>`;
   if (module.page === 'intelligence') return `<div class="intelligence-manifesto"><div><p class="eyebrow">LOCALLY HOSTED INTELLIGENCE / PROPOSED ARCHITECTURE</p><h2>Assist the officer.<br><em>Never hide the evidence.</em></h2><p>Summarisation, routing, translation, redaction and archive rescue all use fictional examples. Every important change requires human review.</p></div></div>`;
-  if (module.page === 'reports') return `<div class="stats-grid">${stat('Tracked records',data.records.length,'Current demo registry','file')}${stat('Overdue',overdue().length,'Fixed demo date: 5 Nov 2026','clock',true)}${stat('Completed',closed().length,'Approved or archived','check')}${stat('Demo actions',fx.log.length,'Actions recorded in this browser','chart')}</div>`;
+  if (module.page === 'reports') return `<div class="stats-grid">${stat('Tracked records',visibleRecords().length,'Current department registry','file')}${stat('Overdue',overdue().length,'Fixed demo date: 5 Nov 2026','clock',true)}${stat('Completed',closed().length,'Approved or archived','check')}${stat('Demo actions',fx.log.length,'Actions recorded in this browser','chart')}</div>`;
   if (module.page === 'platform') return `<div class="fx-phase-strip"><span><strong>Phase 1</strong>Capture, repository, search, access, approvals + three headline experiences</span><span><strong>Phase 2</strong>Mobile, physical registry, verification, archive rescue and additional workflows</span><span><strong>Phase 3</strong>Retention, integrations and organisational scale</span></div>`;
   return '';
 }
@@ -78,6 +84,100 @@ function workflowPreview() {
 }
 const frameworkPages = {modules:modulesPage,public:publicPage,verify:verificationPage};
 modules.forEach(module => {frameworkPages[module.page] = () => modulePage(module);});
+frameworkPages.repository = ministryRepositoryPage;
+
+function ministryRepositoryPage() {
+  state.repositoryDepartment ??= null;
+  state.repositoryUnit ??= null;
+  state.repositoryRootOpen ??= false;
+  const ownDepartment = currentOfficer.department;
+  const units = departmentUnits[ownDepartment] || [];
+  if (state.repositoryDepartment !== null && (state.repositoryDepartment !== ownDepartment || !Object.hasOwn(departmentUnits,ownDepartment)) || state.repositoryUnit !== null && (!units.includes(state.repositoryUnit) || state.repositoryDepartment !== ownDepartment) || !state.repositoryRootOpen && (state.repositoryDepartment !== null || state.repositoryUnit !== null)) {
+    state.repositoryDepartment = null;
+    state.repositoryUnit = null;
+    state.repositoryRootOpen = false;
+    state.query = '';
+  }
+  const department = state.repositoryDepartment;
+  const unit = state.repositoryUnit;
+  const title = unit || department || (state.repositoryRootOpen ? 'Permanent Secretary' : 'Ministry repository');
+  const description = unit ? 'Documents filed in your department\'s selected sub-department. Search by title or reference.' : department ? 'Open a sub-department to browse its documents. Access stays within your assigned department.' : state.repositoryRootOpen ? 'The highest office in the ministry. Every department folder sits directly beneath the Permanent Secretary.' : 'Permanent Secretary, departments, sub-departments, then documents. A clear filing structure for the ministry.';
+  const breadcrumbs = `<nav class="ministry-repository-breadcrumbs" aria-label="Repository breadcrumb"><ol><li>${button('Repository','repo-back','',`data-level="repository" ${!state.repositoryRootOpen ? 'aria-current="page"' : ''}`)}</li>${state.repositoryRootOpen ? `<li>${button('Permanent Secretary','repo-open-root','',!department ? 'aria-current="page"' : '')}</li>` : ''}${department ? `<li>${button(escapeHTML(department),'repo-back','',`data-level="department" data-department="${escapeHTML(department)}" ${!unit ? 'aria-current="page"' : ''}`)}</li>` : ''}${unit ? `<li><span aria-current="page">${escapeHTML(unit)}</span></li>` : ''}</ol></nav>`;
+  let content;
+  if (!state.repositoryRootOpen) {
+    content = `<section aria-label="Highest ministry office"><button type="button" class="ministry-repository-root" data-action="repo-open-root"><span class="ministry-repository-folder-icon">${icon('folder')}</span><span class="ministry-repository-root-copy"><span class="eyebrow">HIGHEST OFFICE / MINISTRY ROOT</span><strong>Permanent Secretary</strong><span>Open the ministry's department folders.</span></span><span class="ministry-repository-open">Open folder ${icon('arrow')}</span></button></section>`;
+  } else if (!department) {
+    content = `<section aria-labelledby="ministry-repository-folders"><div class="section-heading"><h2 id="ministry-repository-folders">Department folders</h2><span class="subtle">Folder names are visible; contents are department-restricted</span></div><div class="ministry-repository-folders">${Object.keys(departmentUnits).map(name => {
+      const allowed = name === ownDepartment;
+      return `<button type="button" class="ministry-repository-folder${allowed ? ' own-department' : ' restricted'}" data-action="repo-department" data-department="${escapeHTML(name)}" ${allowed ? '' : 'disabled aria-disabled="true"'}><span class="ministry-repository-folder-top">${icon('folder')}<span>${icon(allowed ? 'shield' : 'lock')}${allowed ? 'Your department' : 'Restricted'}</span></span><strong>${escapeHTML(name)}</strong><span class="ministry-repository-folder-detail">${allowed ? 'Open your sub-departments' : 'Department access required'}</span>${allowed ? `<span class="ministry-repository-folder-footer">Open folder ${icon('arrow')}</span>` : '<span class="ministry-repository-folder-footer">Folder name only</span>'}</button>`;
+    }).join('')}</div></section>`;
+  } else if (!unit) {
+    const records = visibleRecords().filter(record => canAccessRecord(record) && record.department === ownDepartment);
+    content = `<section aria-labelledby="ministry-repository-folders"><div class="section-heading"><h2 id="ministry-repository-folders">Sub-department folders</h2>${button('All department folders','repo-back','text-link','data-level="root"')}</div><div class="ministry-repository-folders">${units.map(name => {
+      const count = records.filter(record => recordUnit(record) === name).length;
+      return `<button type="button" class="ministry-repository-folder" data-action="repo-unit" data-department="${escapeHTML(department)}" data-unit="${escapeHTML(name)}"><span class="ministry-repository-folder-top">${icon('folder')}<span>Sub-department</span></span><strong>${escapeHTML(name)}</strong><span class="ministry-repository-folder-detail">${count} accessible document${count === 1 ? '' : 's'}</span><span class="ministry-repository-folder-footer">Open folder ${icon('arrow')}</span></button>`;
+    }).join('')}</div></section>`;
+  } else {
+    content = `<section aria-labelledby="ministry-repository-documents"><div class="section-heading"><h2 id="ministry-repository-documents">Documents</h2>${button('All sub-departments','repo-back','text-link',`data-level="department" data-department="${escapeHTML(department)}"`)}</div><div class="toolbar ministry-repository-toolbar"><label class="search-field">${icon('search')}<input id="ministry-repository-search" type="search" aria-label="Search this sub-department by title or reference" value="${escapeHTML(state.query)}" placeholder="Search this folder by title or reference..." autocomplete="off"/></label><span class="subtle">Current sub-department only</span></div><div id="ministry-repository-results" aria-live="polite">${ministryRepositoryDocuments()}</div></section>`;
+  }
+  return `<div class="ministry-repository">${breadcrumbs}${heading('THE MINISTRY FILING ROOM',escapeHTML(title),description,button(`${icon('plus')} Start a process`,'go-start-process','btn btn-primary'))}<div class="ministry-repository-context">${icon('shield')}<span>${escapeHTML(currentOfficer.name)} / ${escapeHTML(currentOfficer.role)}</span><strong>${escapeHTML(ownDepartment)}</strong></div>${fxNotice('Prototype access preview: all department folder names are visible, but only your department\'s contents can be opened. This browser-only demonstration is not production security.')}${content}</div>`;
+}
+
+function ministryRepositoryDocuments() {
+  const department = currentOfficer.department;
+  if (!state.repositoryRootOpen || state.repositoryDepartment !== department || !Object.hasOwn(departmentUnits,department) || !departmentUnits[department].includes(state.repositoryUnit)) return '';
+  const query = (state.query || '').trim().toLowerCase();
+  const records = visibleRecords().filter(record => canAccessRecord(record) && record.department === department && recordUnit(record) === state.repositoryUnit && (!query || [record.title,record.id,record.reference].join(' ').toLowerCase().includes(query)));
+  return recordTable(records);
+}
+
+document.addEventListener('click',event => {
+  const trigger = event.target.closest('[data-action]');
+  if (!trigger || !['repo-open-root','repo-department','repo-unit','repo-back'].includes(trigger.dataset.action)) return;
+  event.preventDefault();
+  const department = currentOfficer.department;
+  const units = departmentUnits[department] || [];
+  const selectedDepartment = state.repositoryDepartment ?? null;
+  const selectedUnit = state.repositoryUnit ?? null;
+  let allowed = state.page === 'repository' && (selectedDepartment === null || selectedDepartment === department && Object.hasOwn(departmentUnits,department)) && (selectedUnit === null || selectedDepartment === department && units.includes(selectedUnit)) && (state.repositoryRootOpen || selectedDepartment === null && selectedUnit === null) && (trigger.dataset.department === undefined || trigger.dataset.department === department);
+  let nextDepartment = null;
+  let nextUnit = null;
+  let rootOpen = true;
+  switch (trigger.dataset.action) {
+    case 'repo-department':
+      allowed = allowed && state.repositoryRootOpen && Object.hasOwn(departmentUnits,department) && trigger.dataset.department === department;
+      nextDepartment = department;
+      break;
+    case 'repo-unit':
+      allowed = allowed && state.repositoryRootOpen && selectedDepartment === department && trigger.dataset.department === department && units.includes(trigger.dataset.unit);
+      nextDepartment = department;
+      nextUnit = trigger.dataset.unit;
+      break;
+    case 'repo-back':
+      if (trigger.dataset.level === 'repository') rootOpen = false;
+      else if (trigger.dataset.level === 'root') allowed = allowed && state.repositoryRootOpen;
+      else if (trigger.dataset.level === 'department') {
+        allowed = allowed && state.repositoryRootOpen && selectedDepartment === department && trigger.dataset.department === department;
+        nextDepartment = department;
+      } else allowed = false;
+      break;
+  }
+  state.repositoryDepartment = allowed ? nextDepartment : null;
+  state.repositoryUnit = allowed ? nextUnit : null;
+  state.repositoryRootOpen = allowed ? rootOpen : false;
+  state.query = '';
+  if (!allowed) toast('Access denied. You can open only your assigned department and its sub-departments.',true);
+  render();
+  const title = $('#main h1');
+  if (title) {title.setAttribute('tabindex','-1');title.focus({preventScroll:true});}
+});
+
+document.addEventListener('input',event => {
+  if (event.target.id !== 'ministry-repository-search' || state.page !== 'repository') return;
+  state.query = event.target.value;
+  const results = $('#ministry-repository-results');
+  if (results) results.innerHTML = ministryRepositoryDocuments();
+});
 
 const policyForms = {
   classify:()=>field('Sample document','record','record')+field('Classification','classification','select','Internal',['Public','Internal','Confidential','Secret'])+field('Tags','tags','text','training, civil service')+field('Reason for the classification','reason','textarea','Reviewed by the demonstration registry officer.'),
@@ -105,7 +205,7 @@ const policyForms = {
 
 function openFeature(feature) {
   activeFeature = feature;
-  const record = getRecord(state.docID) || getRecord(state.journeyID) || data.records[0];
+  const record = getRecord(state.docID) || getRecord(state.journeyID) || visibleRecords()[0];
   const navigation = {smart:'intake',browse:'repository',search:'repository',archiveAsk:'archive',approval:'approvals',command:'leadership',tracking:'journeys',users:'admin',publicPortal:'public',verification:'verify',semantic:'archive',mobile:'approvals'};
   if (navigation[feature]) {closeModal(false); navigate(navigation[feature]); if (feature === 'mobile') toast('Resize to a phone width to preview the same approval journey.'); return;}
   if (['summary','routing'].includes(feature)) {openDocument(record.id); return;}
@@ -187,8 +287,12 @@ document.addEventListener('click',event=>{
 document.addEventListener('submit',event=>{
   if(event.target.id!=='fx-signature-form')return;event.preventDefault();if(!event.target.reportValidity())return;if(signatureMode==='drawn'&&!signatureHasInk)return toast('Draw a fictional sample mark, or choose a typed signature.',true);
   const values=new FormData(event.target),record=getRecord(event.target.dataset.record);if(!record)return;
-  fx.config[`signature-${record.id}`]={signer:values.get('signer').trim(),designation:values.get('designation').trim(),date:TODAY,mode:signatureMode,image:signatureMode==='drawn'?$('#fx-signature-canvas').toDataURL('image/png'):null};
-  addHistory(record,'Sample electronic signature applied',`${values.get('signer')}, ${values.get('designation')} / ${signatureMode} preview / no cryptographic certificate.`,'Demo signatory');save();fxSave('Electronic signature preview applied',record.id);openDocument(record.id,'preview');toast('Sample e-signature appears on the document. Approval status is unchanged.');
+  const key = `signature-${record.id}`;
+  const historyKey = `signatures-${record.id}`;
+  if (!Array.isArray(fx.config[historyKey])) fx.config[historyKey] = fx.config[key] ? [{...fx.config[key],version:fx.config[key].version || 1}] : [];
+  fx.config[key]={signer:values.get('signer').trim(),designation:values.get('designation').trim(),date:TODAY,version:record.version,mode:signatureMode,image:signatureMode==='drawn'?$('#fx-signature-canvas').toDataURL('image/png'):null};
+  fx.config[historyKey].push({...fx.config[key]});
+  addHistory(record,'Sample electronic signature applied',`${values.get('signer')}, ${values.get('designation')} / version ${record.version}.0 / ${signatureMode} preview / no cryptographic certificate.`,'Demo signatory');save();fxSave('Electronic signature preview applied',record.id);render();openDocument(record.id,'preview');toast('Sample e-signature appears on the document. Approval status is unchanged.');
 });
 function bulkModal() {
   featureForm('bulk',`<p class="subtle">Review three prepared records before importing. Local files are not read.</p>${fxTable(['Include','Sample title','Review state'],['Liaison nomination - batch','Staff induction - batch','Quarterly records return - batch'].map((title,index)=>[`<input type="checkbox" name="batch" value="${index}" checked aria-label="Include ${title}"/>`,title,'Metadata ready for confirmation']))}${field('Cabinet for imported samples','department','select',departments[2],departments)}`,'Register selected samples',true);
@@ -227,14 +331,14 @@ function permissionModal() {
   showModal(featureLabels.permissions,'Illustrative role matrix / not enforced against real accounts.',fxTable(['Role',...permissions],roles.map((role,r)=>[role,...permissions.map((permission,p)=>`<input type="checkbox" data-role="${r}" data-permission="${p}" class="fx-permission" aria-label="${role}: ${permission}" ${fx.config.permissions?.[`${r}-${p}`] ?? (r===3 || r===0&&p===0 || r===1&&p===1 || r===2&&[1,2].includes(p)) ? 'checked':''}/>`)]))+fxNotice('Use the Clearance & access decisions preview to inspect a handling decision. This matrix is saved only as a design configuration.'),button('Save matrix preview','fx-save-permissions','btn btn-primary'),true);
 }
 function auditModal(feature) {
-  const events = data.records.flatMap(record=>record.history.map(event=>({...event,reference:record.id}))).slice(-12);
-  showModal(featureLabels[feature],'Fictional audit evidence / no SIEM destination is contacted.',feature === 'audit' ? fxTable(['Reference','Action','Officer','Time'],events.map(event=>[escapeHTML(event.reference),escapeHTML(event.action),escapeHTML(event.by),escapeHTML(event.time)])) : `<pre class="fx-code">${escapeHTML(JSON.stringify({event_type:'document.review.demo',reference:data.records[0].id,actor:'DEMO_OFFICER',classification:'Internal',timestamp:new Date().toISOString(),delivery:'Not sent - prototype payload'},null,2))}</pre>`,button('Close evidence preview','close-modal','btn'),true);
+  const events = visibleRecords().flatMap(record=>record.history.map(event=>({...event,reference:record.id}))).slice(-12);
+  showModal(featureLabels[feature],'Fictional audit evidence / no SIEM destination is contacted.',feature === 'audit' ? fxTable(['Reference','Action','Officer','Time'],events.map(event=>[escapeHTML(event.reference),escapeHTML(event.action),escapeHTML(event.by),escapeHTML(event.time)])) : `<pre class="fx-code">${escapeHTML(JSON.stringify({event_type:'document.review.demo',reference:visibleRecords()[0]?.id,actor:'DEMO_OFFICER',classification:'Internal',timestamp:new Date().toISOString(),delivery:'Not sent - prototype payload'},null,2))}</pre>`,button('Close evidence preview','close-modal','btn'),true);
 }
 function disposalModal() {
   featureForm('disposal',`<div class="notice">${icon('clock')}<span>Appraisal clock: 2035, a hypothetical future review. Original sample dates are not changed. A legal hold or non-archived state blocks disposal.</span></div>`+field('Record for appraisal','record','record')+field('Appraisal recommendation','recommendation','select','Dispose after approval',['Dispose after approval','Retain'])+field('Authorising reference (fictional)','authority','text','DEMO-DISPOSITION-001')+field('Reason','reason','textarea','Retention and evidential value assessed in this hypothetical demonstration.'),'Preview controlled disposition');
 }
 function reportView(feature) {
-  const rows = feature === 'sla' ? departments.map(department=>[department,pending().filter(record=>record.department===department).length,overdue().filter(record=>record.department===department).length,closed().filter(record=>record.department===department).length]) : data.users.map(user=>[escapeHTML(user.name),escapeHTML(user.role),data.records.filter(record=>record.owner===user.name).length,data.records.reduce((count,record)=>count+record.history.filter(event=>event.by===user.name).length,0)]);
+  const rows = feature === 'sla' ? [currentOfficer.department].map(department=>[department,pending().filter(record=>record.department===department).length,overdue().filter(record=>record.department===department).length,closed().filter(record=>record.department===department).length]) : data.users.filter(user=>user.department===currentOfficer.department).map(user=>[escapeHTML(user.name),escapeHTML(user.role),visibleRecords().filter(record=>record.owner===user.name).length,visibleRecords().reduce((count,record)=>count+record.history.filter(event=>event.by===user.name).length,0)]);
   showModal(featureLabels[feature],'Counts from fictional records / not a real staff-performance assessment.',fxTable(feature === 'sla' ? ['Department','Pending','Overdue','Completed'] : ['Officer','Role','Owned records','Recorded actions'],rows)+fxNotice('Historical turnaround and adoption trends require production telemetry. This preview displays only the available demonstration counts.'),button('Close report','close-modal','btn'),true);
 }
 function exportModal() {
@@ -269,7 +373,7 @@ function verificationPage() {
   const verified = fx.config.verification;
   return `${heading('LETTER VERIFICATION DESIGN','A reference. A visible trail.','Look up a fictional verification code. This is not proof of government authenticity.',button('All modules','go-modules','btn'))}${fxNotice('The QR sample encodes OHCSF-DEMO-0148. No real seal, cryptographic signature or official verification registry is involved.')}<div class="fx-two-column"><section class="panel panel-padding"><img class="fx-qr" src="verification-qr.svg" alt="QR code containing the demonstration reference OHCSF-DEMO-0148"/><p class="subtle">QR sample / OHCSF-DEMO-0148</p><form id="fx-verify-form">${field('Sample verification code','code','text','OHCSF-DEMO-0148')}${button('Check sample reference','fx-submit-verify','btn btn-primary','type="submit"')}</form></section><section class="panel panel-padding" id="fx-verification-result"><p class="eyebrow">REFERENCE LOOKUP RESULT</p>${verified ? verificationResult(verified) : '<h2 class="fx-serif">Inspect before trusting.</h2><p>The result shows a fictional file reference and status, not a security or authenticity guarantee.</p>'}</section></div>`;
 }
-function verificationResult(valid) {return valid === 'valid' ? `<h2 class="fx-serif">Sample reference found.</h2><p>OHCSF-DEMO-0148 corresponds to ${escapeHTML(data.records.find(record=>record.id==='REG/2026/0148')?.title || 'the original staff training sample')}.</p><span class="badge draft">Fictional record / not officially verified</span>` : '<h2 class="fx-serif">No sample match.</h2><p>Only the bundled OHCSF-DEMO-0148 reference is available in this preview.</p>';}
+function verificationResult(valid) {const record=getRecord('REG/2026/0148');return valid === 'valid' && record ? `<h2 class="fx-serif">Sample reference found.</h2><p>OHCSF-DEMO-0148 corresponds to ${escapeHTML(record.title)}.</p><span class="badge draft">Fictional record / not officially verified</span>` : '<h2 class="fx-serif">No accessible sample match.</h2><p>The reference is unavailable to your department or does not match a sample.</p>';}
 function registerFixture(title,meta={}) {
   const serial = Math.max(148,...data.records.map(record=>Number(record.id.split('/').at(-1))).filter(Number.isFinite))+1;
   const record = {id:`REG/2026/${String(serial).padStart(4,'0')}`,title,department:meta.department || departments[2],type:meta.type || 'Letter',level:'Internal',due:'2026-11-12',date:TODAY,owner:'Amina Bello',sender:meta.sender || 'Fictional submitting office',step:1,status:'Pending',version:1,summary:meta.summary || 'Prepared fictional record created to demonstrate the proposed framework journey.',file:'Prepared_prototype_sample.pdf',history:[]};
@@ -292,7 +396,7 @@ document.addEventListener('click',event=>{
     case 'fx-scan-review': startCapture();break;
     case 'fx-email-capture': startCapture();break;
     case 'fx-email-procurement': startCapture(null,'procurement');break;
-    case 'fx-preview-format': {const format=trigger.dataset.format;$('#fx-format-preview').innerHTML=format==='Spreadsheet'?fxTable(['Department','Sample records'],departments.map(department=>[department,data.records.filter(record=>record.department===department).length])):`<h3>${format} / illustrative sample</h3><p>${escapeHTML(data.records[0].summary)}</p><p class="subtle">Not an actual ${format} file renderer.</p>`;break;}
+    case 'fx-preview-format': {const format=trigger.dataset.format;$('#fx-format-preview').innerHTML=format==='Spreadsheet'?fxTable(['Department','Sample records'],[[currentOfficer.department,visibleRecords().length]]):`<h3>${format} / illustrative sample</h3><p>${escapeHTML(visibleRecords()[0]?.summary)}</p><p class="subtle">Not an actual ${format} file renderer.</p>`;break;}
     case 'fx-move-step': {const i=Number(trigger.dataset.index);[fx.workflow[i-1],fx.workflow[i]]=[fx.workflow[i],fx.workflow[i-1]];designerModal();break;}
     case 'fx-reset-workflow': fx.workflow=initialFX().workflow;designerModal();break;
     case 'fx-save-workflow': fxSave('Workflow canvas saved',`${fx.workflow.length} sample stages`);closeModal(false);render();toast('Demonstration canvas saved. Approval routing is unchanged.');break;
@@ -304,7 +408,7 @@ document.addEventListener('click',event=>{
     case 'fx-api-run': $('#fx-api-response').textContent=JSON.stringify({status:201,reference:'API-DEMO-001',mode:'local dry run',network_request_sent:false},null,2);fxSave('API dry-run previewed','No network request.');break;
     case 'fx-sync': {const queued=fx.offline.filter(item=>item.status==='Queued');queued.forEach(item=>{registerFixture(item.title,{action:'Offline sync simulated'});item.status='Synced to local demo';});fxSave('Offline sync simulated',`${queued.length} prepared records`);render();offlineModal();break;}
     case 'fx-backup': fx.snapshot=structuredClone(data);fxSave('Demo metadata snapshot created',`${data.records.length} fictional records`);backupModal();break;
-    case 'fx-download-backup': downloadJSON({notice:'FICTIONAL DESIGN PROTOTYPE DATA ONLY',records:data.records,users:data.users,settings:data.settings},'OHCSF-prototype-metadata.json');break;
+    case 'fx-download-backup': downloadJSON({notice:'FICTIONAL DESIGN PROTOTYPE DATA ONLY',records:visibleRecords(),users:data.users.filter(user=>user.department===currentOfficer.department),settings:data.settings},'OHCSF-prototype-metadata.json');break;
   }
 });
 document.addEventListener('change',event=>{
@@ -326,7 +430,7 @@ document.addEventListener('submit',event=>{
   if(feature==='checkout'){const existing=fx.config[`working-${value.record}`];if(value.operation==='Check out'&&existing?.checkedOut)return toast('This sample is already checked out. Check it in first.',true);fx.config[`working-${value.record}`]={checkedOut:value.operation==='Check out',note:value.note};addHistory(record,`${value.operation} preview`,value.note,'Demo officer');save();}
   if(feature==='rollback'){const original=seedRecords.find(item=>item.id===record.id);if(!original)return toast('No earlier prepared metadata is available for this sample.',true);record.summary=original.summary;record.version++;addHistory(record,'Metadata rollback preview',value.reason,'Demo officer');save();}
   if(feature==='bookmark')fx.bookmarks.push({record:value.record,label:value.label});
-  if(['advanced','savedSearch'].includes(feature)){if(value.from>value.to)return toast('The start date must precede the end date.',true);const matches=data.records.filter(record=>[record.title,record.summary,record.id].join(' ').toLowerCase().includes(value.query.toLowerCase())&&(value.department==='All departments'||record.department===value.department)&&(value.type==='All types'||record.type===value.type)&&record.date>=value.from&&record.date<=value.to);fx.config[feature]=value;fxSave(`${featureLabels[feature]} completed`,`${matches.length} sample matches`);resultModal(feature,'Search matches from fictional records.',recordTable(matches));return;}
+  if(['advanced','savedSearch'].includes(feature)){if(value.from>value.to)return toast('The start date must precede the end date.',true);const matches=visibleRecords().filter(record=>[record.title,record.summary,record.id].join(' ').toLowerCase().includes(value.query.toLowerCase())&&(value.department==='All departments'||record.department===value.department)&&(value.type==='All types'||record.type===value.type)&&record.date>=value.from&&record.date<=value.to);fx.config[feature]=value;fxSave(`${featureLabels[feature]} completed`,`${matches.length} sample matches`);resultModal(feature,'Search matches from fictional records.',recordTable(matches));return;}
   if(feature==='classify'){record.level=value.classification;addHistory(record,'Classification reviewed',`${value.classification}; tags: ${value.tags}; ${value.reason}`,'Demo registry officer');save();}
   if(feature==='delegation'&&value.officer===value.delegate)return toast('Choose a different delegate for this sample.',true);
   if(feature==='templates'){registerFixture(`${value.process} / ${value.applicant}`,{department:value.department,type:'Request',summary:value.summary,action:'Civil-service template started'});}
@@ -342,7 +446,7 @@ document.addEventListener('submit',event=>{
   if(feature==='retention')fx.retention.push({category:value.category,years:Number(value.years),action:value.action});
   if(feature==='disposal'){if(fx.holds.some(item=>item.record===value.record))return toast('Disposition blocked: this fictional record is under a legal hold.',true);if(record.status!=='Archived')return toast('Disposition blocked: archive and appraise the sample before disposal.',true);if(value.recommendation==='Dispose after approval'&&!fx.disposed.includes(value.record))fx.disposed.push(value.record);addHistory(record,'Disposition preview',`${value.recommendation}. ${value.authority}: ${value.reason}. No binary record was deleted.`,'Demo records officer');save();}
   if(feature==='restore'){if(record.status!=='Archived')return toast('Select an archived sample record.',true);record.status='Approved';fx.disposed=fx.disposed.filter(id=>id!==record.id);addHistory(record,'Archive restore preview',value.reason,'Demo records officer');save();}
-  if(feature==='reports'){const rows=data.records.filter(record=>value.scope==='All departments'||record.department===value.scope);fxSave('Report preview generated',value.metric);resultModal(feature,`${value.metric} / fictional report`,recordTable(value.metric==='Overdue records'?rows.filter(isLate):rows));return;}
+  if(feature==='reports'){const rows=visibleRecords().filter(record=>value.scope==='All departments'||record.department===value.scope);fxSave('Report preview generated',value.metric);resultModal(feature,`${value.metric} / fictional report`,recordTable(value.metric==='Overdue records'?rows.filter(isLate):rows));return;}
   if(['sensitive','anonymise'].includes(feature)){record.level=value.level;addHistory(record,'Prepared content review',`${featureLabels[feature]} / ${value.level}. Fictional example only.`,'Demo reviewing officer');save();}
   if(feature==='rescue')registerFixture(value.title,{sender:value.origin,summary:`Human-confirmed legacy reference ${value.reference}. Prepared legacy sample, not OCR output.`,action:'Archive rescue simulated'});
   if(feature==='accessibility'){document.body.classList.toggle('fx-high-contrast',value.contrast==='High contrast');document.body.classList.toggle('fx-large-text',value.text==='Larger');document.body.classList.toggle('fx-reduced-motion',value.motion==='Reduced motion');}
