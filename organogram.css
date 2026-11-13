@@ -1,0 +1,251 @@
+.desk-switch-button {
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid #b9cbb6;
+  background: #edf3e7;
+  color: var(--forest);
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.sidebar-user > button.avatar {
+  flex-shrink: 0;
+}
+
+.organogram-workspace {
+  --organogram-line: #a4b69b;
+  --organogram-parchment: #fffef8;
+  --organogram-muted: #586b57;
+}
+
+.organogram-workspace .page-heading p:not(.eyebrow) {
+  max-width: 620px;
+  color: var(--organogram-muted);
+  font-size: 12px;
+}
+
+.organogram-selected {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  padding: 22px 25px;
+  border: 1px solid #d2deca;
+  border-left: 4px solid var(--green);
+  border-radius: 8px;
+  background: #edf3e7;
+}
+
+.organogram-selected > .avatar {
+  width: 46px;
+  height: 46px;
+  background: var(--forest);
+  color: #fffef8;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.organogram-selected > div { flex: 1; min-width: 0; }
+.organogram-selected .eyebrow { color: #506a46; margin-bottom: 6px; }
+.organogram-selected h2 { margin: 0; font: 24px/1.35 Georgia, serif; color: var(--forest); }
+.organogram-selected p:not(.eyebrow) { margin: 5px 0 0; color: var(--organogram-muted); font-size: 12px; overflow-wrap: anywhere; }
+.organogram-selected > .btn { min-height: 44px; flex-shrink: 0; background: #fffef8; }
+.organogram-context-note { margin: 12px 0 30px; color: var(--organogram-muted); font-size: 11px; line-height: 1.8; }
+
+.organogram-hierarchy {
+  border: 1px solid #dce3d5;
+  border-radius: 10px;
+  background: var(--organogram-parchment);
+  padding: 27px 24px;
+  margin-bottom: 26px;
+}
+
+.organogram-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.organogram-section-heading h2 { margin: 0; color: var(--forest); font: 27px/1.35 Georgia, serif; letter-spacing: -.4px; }
+.organogram-section-heading .eyebrow { color: #596d50; }
+.organogram-tree-key { display: flex; align-items: center; gap: 8px; color: var(--organogram-muted); font-size: 10px; white-space: nowrap; }
+.organogram-tree-key > span { width: 24px; height: 1px; background: var(--organogram-line); }
+.organogram-explanation { color: var(--organogram-muted); font-size: 12px; line-height: 1.9; max-width: 880px; margin: 14px 0 27px; }
+
+.organogram-chart { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; position: relative; }
+.organogram-intake { grid-column: 1; grid-row: 1; z-index: 1; padding: 16px; border: 1px dashed #bba77d; border-radius: 8px; background: #f5efe0; margin-right: 22px; }
+.organogram-intake > .eyebrow { color: #6e5d3b; font-size: 8px; letter-spacing: .8px; line-height: 1.8; }
+.organogram-intake > h3 { font: 20px/1.4 Georgia, serif; color: #665631; margin: 0 0 13px; }
+.organogram-intake .organogram-desk { border-color: #ded2b8; }
+.organogram-intake-sources { display: grid; gap: 8px; margin: 15px 0; color: #685a3f; font-size: 11px; }
+.organogram-intake-sources > span { display: flex; align-items: flex-start; gap: 7px; }
+.organogram-intake-sources .icon { width: 15px; height: 15px; margin-top: 1px; }
+.organogram-intake-link { margin: 0; padding-top: 12px; border-top: 1px dashed #caba99; color: #685a3f; font-size: 11px; font-weight: 600; }
+.organogram-intake-link > .icon { width: 18px; height: 18px; vertical-align: middle; margin-left: 7px; }
+.organogram-intake-link small { display: block; font-size: 10px; font-weight: normal; margin-top: 5px; }
+
+.organogram-reporting-tree, .organogram-branches, .organogram-ladder, .organogram-picker-central, .organogram-picker-ranks { list-style: none; padding: 0; margin: 0; }
+.organogram-reporting-tree { grid-column: 1 / -1; grid-row: 1; min-width: 0; }
+.organogram-root { padding-top: 16px; }
+.organogram-ps { position: relative; width: calc(100% / 3); max-width: 310px; margin: 0 auto 24px; padding: 0 10px; min-height: 410px; display: flex; flex-direction: column; }
+.organogram-ps > .eyebrow { text-align: center; color: #52694a; line-height: 1.8; font-size: 8px; letter-spacing: .8px; }
+.organogram-ps .organogram-desk { border-top: 3px solid var(--forest); }
+.organogram-ps-note { margin: 12px 0 0; text-align: center; color: var(--organogram-muted); font-size: 11px; }
+.organogram-ps::after { content: ''; width: 1px; background: var(--organogram-line); flex: 1; min-height: 22px; align-self: center; margin-top: 13px; margin-bottom: -24px; }
+.organogram-branches { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; position: relative; }
+.organogram-branches::before { content: ''; position: absolute; top: 0; left: calc((100% - 60px) / 8); right: calc((100% - 60px) / 8); height: 1px; background: var(--organogram-line); }
+.organogram-branch { min-width: 0; padding-top: 24px; position: relative; }
+.organogram-branch::before { content: ''; position: absolute; top: 0; left: 50%; height: 24px; border-left: 1px solid var(--organogram-line); }
+.organogram-branch-heading { display: flex; flex-direction: column; justify-content: center; min-height: 93px; padding: 14px 13px; border: 1px solid #cddbc5; border-radius: 6px; background: #eaf1e3; text-align: center; }
+.organogram-branch-heading .eyebrow { font-size: 8px; color: #526b45; letter-spacing: 1px; margin-bottom: 7px; }
+.organogram-branch-heading h3 { font: 20px/1.35 Georgia, serif; color: var(--forest); margin: 0; overflow-wrap: anywhere; }
+.organogram-ladder > li { position: relative; padding-top: 19px; }
+.organogram-ladder > li::before { content: ''; position: absolute; left: 50%; top: 0; height: 19px; border-left: 1px solid var(--organogram-line); }
+
+.organogram-desk { min-width: 0; padding: 15px 13px 12px; border: 1px solid #dbe3d3; border-radius: 6px; background: #fff; }
+.organogram-desk.is-current { border-color: #52764a; background: #edf4e6; box-shadow: inset 3px 0 #52764a; }
+.organogram-desk-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.organogram-desk-heading h3, .organogram-desk-heading h4 { margin: 0; color: var(--forest); font: 18px/1.35 Georgia, serif; overflow-wrap: anywhere; }
+.organogram-grade { display: inline-block; flex-shrink: 0; border: 1px solid #d9dfca; border-radius: 3px; background: #f5f5eb; color: #536443; padding: 3px 5px; font-size: 9px; white-space: nowrap; }
+.organogram-incumbent { margin: 10px 0 6px; font-size: 12px; color: #42553e; overflow-wrap: anywhere; }
+.organogram-desk-state { display: flex; align-items: center; gap: 5px; min-height: 16px; margin: 0 0 12px; font-size: 10px; color: #5e6a58; }
+.organogram-desk-state .icon { height: 13px; width: 13px; }
+.is-current .organogram-desk-state { color: #31552b; font-weight: 600; }
+.organogram-open-desk { justify-content: space-between; width: 100%; min-height: 44px; padding: 9px 10px; font-size: 11px; border-color: #cbd9c1; background: #f7f9f2; color: var(--forest); }
+.organogram-open-desk:hover { background: #e9f1e1; border-color: #8fa981; }
+.organogram-open-desk > .icon { width: 15px; height: 15px; }
+
+.organogram-legend { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(0, 1.5fr); gap: 28px; padding: 26px; border: 1px solid #e2d8bf; border-radius: 8px; background: #f2eddf; margin-bottom: 21px; }
+.organogram-legend h2 { margin: 0 0 12px; font: 25px/1.35 Georgia, serif; color: #655630; }
+.organogram-legend .eyebrow { color: #726342; }
+.organogram-legend p { font-size: 12px; color: #695f45; margin: 0; line-height: 1.9; }
+.organogram-legend dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px 18px; margin: 0; align-content: start; }
+.organogram-legend dl > div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid #ded4bd; padding: 7px 0; color: #5d543d; font-size: 11px; }
+.organogram-legend dd { margin: 0; font-weight: 600; white-space: nowrap; }
+.organogram-approval-note { display: flex; align-items: flex-start; gap: 14px; padding: 20px 23px; border: 1px solid #d7e1ce; border-radius: 7px; background: #edf3e7; }
+.organogram-approval-note > .icon { color: var(--forest); margin-top: 3px; }
+.organogram-approval-note h2 { font: 21px/1.4 Georgia, serif; color: var(--forest); margin: 0 0 7px; }
+.organogram-approval-note p { color: var(--organogram-muted); font-size: 12px; line-height: 1.9; margin: 0; }
+
+.organogram-picker { --organogram-muted: #586b57; }
+.organogram-picker-intro { background: #edf3e7; border: 1px solid #d1dfc6; border-radius: 6px; padding: 15px 18px; margin-bottom: 24px; }
+.organogram-picker-intro p { color: #43593b; font-size: 12px; line-height: 1.8; margin: 0; }
+.organogram-picker-intro p + p { margin-top: 7px; }
+.organogram-picker .organogram-section-heading h3 { font: 23px/1.4 Georgia, serif; color: var(--forest); margin: 0; }
+.organogram-picker-note { font-size: 11px; color: #586b57; line-height: 1.8; margin: 12px 0 18px; }
+.organogram-picker-central { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 25px; }
+.organogram-picker-departments { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.organogram-picker-departments > section { min-width: 0; }
+.organogram-picker .organogram-branch-heading { min-height: 100px; }
+.organogram-picker-ranks { display: grid; gap: 10px; margin-top: 12px; }
+
+/* Preserve stage order without compressing the twelve-stop document route. */
+.journey-track {
+  grid-template-columns: repeat(12, minmax(100px, 1fr));
+  overflow-x: auto;
+  gap: 0;
+  padding: 5px 4px 15px;
+  scrollbar-color: #8da07e #edf1e6;
+}
+
+.journey-stop::after { top: 15px; left: calc(50% + 16px); right: calc(-50% + 16px); }
+.journey-stop-marker { width: 31px; height: 31px; }
+.process-desk-map { grid-template-columns: repeat(12, minmax(115px, 1fr)); overflow-x: auto; padding-bottom: 10px; scrollbar-color: #8da07e #edf1e6; }
+.process-desk-map > div { min-width: 0; }
+.desk-map { grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.desk-map .desk-node::after { display: none; }
+
+.task-latest-minute { margin-top: 20px; padding: 20px; border: 1px solid #d3dfc8; border-left: 3px solid var(--green); border-radius: 6px; background: #f8fbf3; }
+.task-latest-minute .section-heading { align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+.task-latest-minute h3 { margin: 0; font: 20px/1.4 Georgia, serif; color: var(--forest); }
+.task-latest-minute .subtle { font-size: 11px; overflow-wrap: anywhere; }
+.task-minute-list { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 16px; }
+.task-minute { border: 1px solid #d7e1ce; border-radius: 7px; background: #fffef8; padding: 22px; }
+.task-minute header { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.task-minute header > div { flex: 1; min-width: 0; }
+.task-minute h3 { margin: 0; font: 20px/1.4 Georgia, serif; color: var(--forest); overflow-wrap: anywhere; }
+.task-minute header p { margin: 4px 0; color: #52674b; font-size: 12px; overflow-wrap: anywhere; }
+.task-minute time { font-size: 11px; color: #627357; }
+.task-minute-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.9; color: #344a30; margin: 15px 0 0; }
+.task-minute-action, .task-minute-handoff { font-size: 12px; color: #5e7254; overflow-wrap: anywhere; }
+.task-minutes > .section-heading { flex-wrap: wrap; gap: 12px; }
+.minute-attachment-fields { margin-top: 18px; padding-top: 18px; border-top: 1px solid #d7e1ce; }
+.minute-attachment-fields input[type="file"] { width: 100%; font-size: 12px; }
+.minute-attachment-selection { font-size: 12px; overflow-wrap: anywhere; }
+.minute-attachments { margin: 18px 0; padding: 15px; border: 1px solid #d4dfca; border-radius: 6px; background: #edf3e7; }
+.minute-attachments ul { list-style: none; padding: 0; margin: 10px 0; }
+.minute-attachments li { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 0; border-bottom: 1px solid #d7e1ce; }
+.minute-attachments li > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.minute-attachments small { display: block; font-size: 10px; color: #52674b; }
+
+@media (max-width: 1300px) {
+  .topbar-right { gap: 10px; }
+  .topbar .demo-pill { display: none; }
+  .topbar .global-search input { width: 120px; }
+  .organogram-desk-heading { flex-wrap: wrap; }
+  .organogram-ps { min-height: 430px; }
+}
+
+@media (max-width: 1100px) {
+  .topbar { height: auto; min-height: 75px; flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; }
+  .topbar-right { max-width: 100%; flex-wrap: wrap; }
+  .organogram-section-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .organogram-chart { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .organogram-intake { margin-right: 26px; }
+  .organogram-ps { width: 50%; margin-left: 50%; max-width: none; padding-left: 0; min-height: 365px; }
+  .organogram-branches { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px; border-left: 1px solid var(--organogram-line); padding-left: 20px; margin-left: 10px; }
+  .organogram-branches::before { display: none; }
+  .organogram-branch::before { height: 0; border-left: 0; border-top: 1px solid var(--organogram-line); left: -20px; right: 50%; }
+  .organogram-branch:nth-child(odd)::before { right: -26px; }
+  .organogram-branch:nth-child(even)::before { left: -26px; }
+  .organogram-branch-heading { position: relative; }
+  .organogram-branch-heading::before { content: ''; position: absolute; left: 50%; top: -25px; height: 24px; border-left: 1px solid var(--organogram-line); }
+  .organogram-legend { grid-template-columns: 1fr; gap: 20px; }
+  .organogram-desk-heading { flex-wrap: nowrap; }
+  .organogram-picker-departments { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+  .organogram-picker .organogram-branch-heading::before { display: none; }
+}
+
+@media (max-width: 760px) {
+  .topbar { height: auto; min-height: 65px; flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; }
+  .topbar-right { gap: 9px; flex: 1; justify-content: flex-end; flex-wrap: wrap; }
+  .topbar .global-search { flex: 1 1 115px; min-width: 0; }
+  .topbar .global-search input { width: 100%; min-width: 0; }
+  .desk-switch-button { padding: 9px 10px; }
+  .desk-switch-button .icon { width: 16px; height: 16px; }
+  .organogram-workspace .page-heading { flex-direction: column; }
+  .organogram-workspace .page-heading p:not(.eyebrow) { max-width: none; font-size: 13px; }
+  .organogram-workspace .heading-actions { padding: 0; }
+  .organogram-workspace .heading-actions .btn { min-height: 44px; font-size: 12px; }
+  .organogram-selected { flex-wrap: wrap; padding: 20px; }
+  .organogram-selected > .btn { margin-left: 63px; }
+  .organogram-context-note { font-size: 12px; }
+  .organogram-hierarchy { padding: 22px 18px; }
+  .organogram-section-heading h2 { font-size: 25px; }
+  .organogram-explanation { font-size: 13px; }
+  .organogram-chart { display: block; }
+  .organogram-intake { margin: 0 0 25px; }
+  .organogram-intake > .organogram-desk { max-width: none; }
+  .organogram-intake-sources { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .organogram-root { padding-top: 0; }
+  .organogram-ps { width: 100%; max-width: 330px; margin: 0 auto 24px; padding: 0; min-height: 0; }
+  .organogram-ps::after { align-self: center; margin-left: 0; min-height: 24px; }
+  .organogram-branches { grid-template-columns: 1fr; gap: 24px; padding-left: 18px; margin-left: 0; }
+  .organogram-branch:nth-child(n)::before { left: -18px; right: 50%; }
+  .organogram-branch-heading { min-height: 85px; }
+  .organogram-branch-heading h3 { font-size: 23px; }
+  .organogram-desk { padding: 17px; }
+  .organogram-desk-heading h3, .organogram-desk-heading h4 { font-size: 21px; }
+  .organogram-incumbent { font-size: 13px; }
+  .organogram-open-desk { font-size: 12px; }
+  .organogram-legend { padding: 22px; }
+  .organogram-legend dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .organogram-approval-note { padding: 20px 17px; }
+  .organogram-approval-note p { font-size: 13px; }
+  .organogram-picker-central, .organogram-picker-departments { grid-template-columns: 1fr; }
+  .organogram-picker .organogram-desk-heading { flex-wrap: wrap; }
+  .organogram-picker .organogram-desk-heading h4 { font-size: 20px; }
+}
+
+@media (max-width: 420px) {
+  .organogram-selected > div { flex-basis: calc(100% - 63px); }
+  .organogram-selected > .btn { margin-left: 0; width: 100%; }
+  .organogram-selected h2 { font-size: 22px; }
+  .organogram-desk-heading { flex-wrap: wrap; }
+  .organogram-intake-sources { grid-template-columns: 1fr; }
+  .organogram-legend dl { grid-template-columns: 1fr; }
+}

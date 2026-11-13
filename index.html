@@ -11,9 +11,11 @@
   <link rel="stylesheet" href="signature.css" />
   <link rel="stylesheet" href="landing.css" />
   <link rel="stylesheet" href="branding.css" />
+  <link rel="stylesheet" href="organogram.css" />
   <script src="app.js" defer></script>
   <script src="framework.js" defer></script>
   <script src="coverage.js" defer></script>
+  <script src="organogram.js" defer></script>
 </head>
 <body>
   <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -69,7 +71,7 @@
       <a href="#archive" data-page="archive"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>Ask the Archive</a>
       <a href="#e-signatures" data-page="e-signatures"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg>E-signatures</a>
     </nav>
-    <div class="sidebar-bottom"><div class="prototype-note"><span class="status-dot"></span>DESIGN PROTOTYPE<p>Fictional office workflow.<br>No live records or accounts.</p></div><div class="sidebar-user"><span class="avatar">AB</span><div>Amina Bello<span>Registry officer</span></div><button class="icon-button" data-action="fx-signout" aria-label="Sign out of the prototype"><svg class="icon" aria-hidden="true"><use href="#i-return"/></svg></button></div></div>
+    <div class="sidebar-bottom"><div class="prototype-note"><span class="status-dot"></span>DESIGN PROTOTYPE<p>Fictional office workflow.<br>No live records or accounts.</p></div><div class="sidebar-user"><button type="button" class="avatar" data-action="profile" aria-label="Switch fictional officer desk" aria-haspopup="dialog">AB</button><div>Amina Bello<span>Registry officer</span></div><button class="icon-button" data-action="fx-signout" aria-label="Sign out of the prototype"><svg class="icon" aria-hidden="true"><use href="#i-return"/></svg></button></div></div>
   </aside>
   <div class="app-shell">
     <header class="institution-masthead" aria-label="Institution identity">
@@ -82,11 +84,10 @@
       <div class="institution-service"><span class="institution-service-label">OHCSF / ABUJA</span><strong>Electronic Document Management</strong><span class="institution-product">Registry <span aria-hidden="true">&middot;</span> Design prototype</span></div>
     </header>
   
-    <header class="topbar"><div class="topbar-left"><button class="icon-button mobile-menu" data-action="menu" aria-label="Open navigation" aria-expanded="false"><svg class="icon"><use href="#i-menu"/></svg></button><span class="breadcrumb">Workspace <span>/</span> <strong id="breadcrumb-page">Overview</strong></span></div><div class="topbar-right"><form id="global-search-form" class="global-search"><svg class="icon"><use href="#i-search"/></svg><input id="global-search" aria-label="Search all sample documents" placeholder="Search documents..." autocomplete="off"/><kbd>/</kbd></form><span class="demo-pill">PROTOTYPE</span><button class="icon-button notification-button" data-action="notifications" aria-label="View notifications"><svg class="icon"><use href="#i-bell"/></svg><span class="notification-dot"></span></button><button class="avatar top-avatar" data-action="profile" aria-label="View demonstration roles">AB</button></div></header>
+    <header class="topbar"><div class="topbar-left"><button class="icon-button mobile-menu" data-action="menu" aria-label="Open navigation" aria-expanded="false"><svg class="icon"><use href="#i-menu"/></svg></button><span class="breadcrumb">Workspace <span>/</span> <strong id="breadcrumb-page">Overview</strong></span></div><div class="topbar-right"><form id="global-search-form" class="global-search"><svg class="icon"><use href="#i-search"/></svg><input id="global-search" aria-label="Search all sample documents" placeholder="Search documents..." autocomplete="off"/><kbd>/</kbd></form><span class="demo-pill">PROTOTYPE</span><button type="button" class="btn desk-switch-button" data-action="profile" aria-label="Switch fictional officer desk" aria-haspopup="dialog"><svg class="icon" aria-hidden="true"><use href="#i-users"/></svg>Switch desk</button><button class="icon-button notification-button" data-action="notifications" aria-label="View notifications"><svg class="icon"><use href="#i-bell"/></svg><span class="notification-dot"></span></button><button type="button" class="avatar top-avatar" data-action="profile" aria-label="Choose fictional officer desk" aria-haspopup="dialog">AB</button></div></header>
     <main id="main" tabindex="-1"></main>
     <footer class="app-footer institution-footer">
       <div class="footer-summary"><span>OHCSF <span class="footer-separator">/</span> Registry design prototype</span><span>Fictional data only <span class="footer-separator">&middot;</span> Not a live government service</span></div>
-      <p class="emblem-attribution">Nigeria coat of arms: <a href="https://commons.wikimedia.org/wiki/File:Coat_of_arms_of_Nigeria.svg">Wikimedia Commons</a>, by <a href="https://commons.wikimedia.org/wiki/User:Lumia1234">Lumia1234</a> <span aria-hidden="true">&middot;</span> <a href="https://creativecommons.org/licenses/by-sa/3.0/" rel="license">CC BY-SA 3.0</a> <span aria-hidden="true">&middot;</span> Artwork unchanged; attribution metadata added. <a href="nigeria-coat-of-arms.svg">Local emblem</a>.</p>
     </footer>
   </div>
   <div id="modal-root"></div>

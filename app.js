@@ -7,11 +7,24 @@ const TODAY = '2026-11-05';
 const STORAGE_KEY = 'registry-design-prototype-v1';
 const pageNames = {dashboard:'Office workbench',journeys:'File journeys',repository:'Document repository',approvals:'My approvals',intake:'Smart intake',archive:'Ask the Archive',leadership:'Command view',admin:'Administration',modules:'Framework modules',captureops:'Capture operations',repositorytools:'Repository workspace',discovery:'Search & discovery',workflows:'Workflow studio',teamwork:'Collaboration',correspondence:'Registry & correspondence',access:'Security & access',records:'Records lifecycle',reports:'Reporting centre',intelligence:'Intelligence lab',integrations:'Integration centre',platform:'Platform & administration',public:'Public submission preview',verify:'Letter verification preview'};
 const departments = ['Human Resources', 'Finance & Accounts', 'General Administration', 'Policy & Planning'];
-const currentOfficer = {name:'Amina Bello',role:'Registry officer',department:'General Administration'};
+const centralDepartment = 'Permanent Secretary Office';
+const staffRanks = [{title:'Director',grade:17},{title:'Deputy Director',grade:16},{title:'Assistant Director',grade:15},{title:'Chief',grade:14},{title:'Assistant Chief',grade:13},{title:'Principal',grade:12},{title:'Senior',grade:10},{title:'Officer I',grade:9},{title:'Officer II',grade:8}];
+const departmentLabel = name => ({'Human Resources':'Human Resource Management (HRM)','Policy & Planning':'Planning, Research & Statistics (PRS)'}[name] || name);
+const priorities = ['Normal','Urgent'];
+const routingPurposes = ['For treatment','For review / approval'];
+const processPriority = record => priorities.includes(record.priority) ? record.priority : 'Normal';
+const priorityBadge = record => `<span class="badge ${processPriority(record) === 'Urgent' ? 'overdue' : 'draft'}" aria-label="Priority: ${processPriority(record)}">${processPriority(record)} priority</span>`;
+const priorityOrder = (a,b) => Number(processPriority(b) === 'Urgent')-Number(processPriority(a) === 'Urgent') || (a.due || '').localeCompare(b.due || '') || a.id.localeCompare(b.id);
+const currentOfficer = {id:'ps-registry',name:'Amina Bello',role:'PS Registry',rank:'PS Registry',grade:null,department:centralDepartment};
+const isCentralOfficer = () => currentOfficer.department === centralDepartment;
+const canAccessDepartment = department => isCentralOfficer() || department === currentOfficer.department;
 const departmentUnits = {'Human Resources':['Personnel Services','Staff Development'],'Finance & Accounts':['Accounts','Procurement'],'General Administration':['Central Registry','Office Services'],'Policy & Planning':['Policy Development','Planning & Research']};
 Object.assign(pageNames,{dashboard:'Inbox',inbox:'Inbox',draft:'Draft','open-tasks':'Open Tasks',completed:'Completed','start-process':'Start Process','work-group':'Work Group',login:'Officer sign-in',mfa:'Verification preview'});
 pageNames['e-signatures'] = 'E-signatures';
-const route = ['Registry', 'Reviewing officer', 'Head of Department', 'Permanent Secretary', 'Archive'];
+const route = ['PS Registry','Permanent Secretary',...staffRanks.map(rank => rank.title),'Archive'];
+const treatmentStep = route.indexOf('Officer II');
+const archiveStep = route.indexOf('Archive');
+const officeID = (department,step) => step === 0 || step === archiveStep ? 'ps-registry' : step === 1 ? 'permanent-secretary' : `${departments.indexOf(department)}-${step}`;
 const seedRecords = [
   {id:'REG/2026/0148',title:'Request for staff training approval',department:'Human Resources',type:'Memo',status:'Pending',due:'2026-11-04',date:'2026-11-02',owner:'Amina Bello',sender:'Director of Human Resources',level:'Internal',step:2,summary:'Approval requested for a three-day records management workshop for 18 officers. The proposed programme focuses on digital filing, classification and document handling.',file:'Staff_training_request.pdf'},
   {id:'REG/2026/0147',title:'Q4 office equipment procurement',department:'Finance & Accounts',type:'Request',status:'Pending',due:'2026-11-05',date:'2026-11-02',owner:'Chidi Okafor',sender:'Head of Procurement',level:'Confidential',step:2,summary:'Request to review the procurement schedule for office printers and scanning equipment. Budget details and vendor comparisons are included in the supporting documents.',file:'Q4_procurement.pdf'},
@@ -24,19 +37,38 @@ const seedRecords = [
   {id:'REG/2026/0140',title:'October management meeting minutes',department:'General Administration',type:'Minutes',status:'Archived',due:'2026-10-30',date:'2026-10-27',owner:'Amina Bello',sender:'Secretariat Services',level:'Internal',step:4,summary:'Approved minutes of the October management meeting, including action points for departmental records officers and the next quarterly review.',file:'October_meeting_minutes.pdf'},
   {id:'REG/2026/0139',title:'New officer onboarding checklist',department:'Human Resources',type:'Circular',status:'Approved',due:'2026-10-29',date:'2026-10-26',owner:'Fatima Yusuf',sender:'Human Resources Unit',level:'Internal',step:4,summary:'An approved checklist covering staff registration, induction, account requests, departmental assignment and records handling orientation.',file:'Onboarding_checklist.pdf'}
 ];
-const seedUsers = [
-  {name:'Amina Bello',role:'Registry officer',department:'General Administration'},
-  {name:'Chidi Okafor',role:'Reviewing officer',department:'Finance & Accounts'},
-  {name:'Fatima Yusuf',role:'Director',department:'Human Resources'},
-  {name:'Emeka Nwosu',role:'Reviewing officer',department:'Policy & Planning'}
-];
+const seedUsers = [{...currentOfficer},{id:'permanent-secretary',name:'Demo Permanent Secretary',role:'Permanent Secretary',rank:'Permanent Secretary',grade:null,department:centralDepartment},...departments.flatMap(department => staffRanks.map((rank,index) => ({id:officeID(department,index+2),name:department === 'Human Resources' && index === 0 ? 'Fatima Yusuf' : department === 'Finance & Accounts' && rank.title === 'Officer I' ? 'Chidi Okafor' : department === 'Policy & Planning' && rank.title === 'Officer I' ? 'Emeka Nwosu' : `Demo ${rank.title} / ${departmentLabel(department)}`,role:rank.title,rank:rank.title,grade:rank.grade,department})))];
+function migrateData(saved) {
+  const legacy = saved.schemaVersion !== 2;
+  const legacySteps = [0,9,2,1,archiveStep];
+  const records = saved.records.map(record => {
+    const updated = {...record};
+    updated.priority = processPriority(record);
+    if (legacy) {
+      updated.step = legacySteps[record.step];
+      if (Number.isInteger(record.resumeStep)) updated.resumeStep = legacySteps[record.resumeStep];
+      updated.legacyWorkflow = true;
+      updated.history = [...record.history,{action:'MDA routing model updated',by:'Prototype configuration',time:new Date().toISOString(),note:'Earlier generic approval events are retained as historical evidence, not proof that the new MDA desks have acted.'}];
+    }
+    updated.assigneeID ||= officeID(updated.department,updated.step);
+    return updated;
+  });
+  const users = structuredClone(seedUsers);
+  for (const user of saved.users) {
+    const existing = users.find(item => item.id === user.id || item.name === user.name);
+    if (existing) {if (user.name) existing.name = user.name;}
+    else {const title = user.rank || (user.role === 'Reviewing officer' ? 'Officer I' : user.role); users.push({...user,id:user.id || `staff-${crypto.randomUUID()}`,rank:title,grade:staffRanks.find(rank => rank.title === title)?.grade ?? null});}
+  }
+  return {...saved,schemaVersion:2,records,users,processDrafts:(saved.processDrafts || []).map(draft => ({...draft,desk:0,priority:processPriority(draft),sourceChannel:draft.sourceChannel || 'Soft copy',createdBy:draft.createdBy || 'ps-registry'}))};
+}
 function initialData() {
-  return {records:seedRecords.map(record => ({...record,version:1,history:[{action:'Captured and registered',by:record.owner,time:`${record.date}T09:00:00`,note:'Metadata verified and a file reference assigned.'},{action:record.status === 'Pending' ? `Routed to ${route[record.step]}` : record.status === 'Correction' ? 'Returned for correction' : `Document ${record.status.toLowerCase()}`,by:'Secretariat workflow',time:`${record.date}T11:20:00`,note:record.status === 'Correction' ? 'Please clarify the entries and include the supporting schedule.' : 'Sample activity for the design preview.'}]})),users:structuredClone(seedUsers),settings:{twoFactor:true,watermark:true,localAI:true},processDrafts:[]};
+  const positions = [2,3,0,5,archiveStep,archiveStep,1,8,archiveStep,archiveStep];
+  return {schemaVersion:2,records:seedRecords.map((record,index) => ({...record,priority:index === 2 ? 'Urgent' : 'Normal',step:positions[index],assigneeID:officeID(record.department,positions[index]),resumeStep:record.status === 'Correction' ? 9 : undefined,sourceChannel:index === 2 ? 'Scanned hard copy' : 'Soft copy',version:1,history:[{action:'Captured and registered',by:record.owner,time:`${record.date}T09:00:00`,note:'Fictional PS Registry receipt. Metadata verified and a file reference assigned.'},{action:record.status === 'Pending' ? `Assigned to ${route[positions[index]]}` : record.status === 'Correction' ? 'Returned for correction' : `Document ${record.status.toLowerCase()}`,by:'Secretariat workflow',time:`${record.date}T11:20:00`,note:record.status === 'Correction' ? 'Please clarify the entries and include the supporting schedule.' : 'Sample desk position for the design preview; earlier handoffs are not fabricated.'}]})),users:structuredClone(seedUsers),settings:{twoFactor:true,watermark:true,localAI:true},processDrafts:[]};
 }
 let data = initialData();
 try {
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-  if (saved && Array.isArray(saved.records) && Array.isArray(saved.users) && saved.settings && saved.records.every(record => typeof record.id === 'string' && Array.isArray(record.history) && departments.includes(record.department) && Number.isInteger(record.step) && record.step >= 0 && record.step <= 4 && ['Pending','Approved','Archived','Correction','Draft'].includes(record.status))) data = saved;
+  if (saved && Array.isArray(saved.records) && Array.isArray(saved.users) && saved.settings && saved.records.every(record => typeof record.id === 'string' && Array.isArray(record.history) && departments.includes(record.department) && Number.isInteger(record.step) && record.step >= 0 && record.step <= (saved.schemaVersion === 2 ? archiveStep : 4) && ['Pending','Approved','Archived','Correction','Draft','Treated'].includes(record.status))) data = migrateData(saved);
 } catch { /* The demo remains usable when browser storage is unavailable. */ }
 const state = {page:'dashboard',query:'',department:'All departments',status:'All statuses',view:'list',approvalTab:'Pending',docID:null,docTab:'preview',intake:null,answer:null,previewRole:'Registry officer',journeyID:null,journeyQuery:'',followUpID:null};
 data.processDrafts = Array.isArray(data.processDrafts) ? data.processDrafts.filter(draft => draft && typeof draft.id === 'string' && typeof draft.title === 'string' && [1,2,3].includes(draft.step) && (!draft.sample || ['liaison','procurement','clarification'].includes(draft.scenario))) : [];
@@ -47,10 +79,26 @@ function save() {
   try { localStorage.setItem(STORAGE_KEY,JSON.stringify(data)); }
   catch { if (!storageWarningShown) { storageWarningShown = true; toast('Browser storage is unavailable. Demo changes last until this page closes.',true); } }
 }
-const canAccessRecord = record => Boolean(record && record.department === currentOfficer.department);
+const routeOffice = (record,step=record.step) => data.users.find(user => user.id === (step === record.step ? record.assigneeID : officeID(record.department,step)));
+const eligibleRecipients = (record,step=record.step+1,department=record.department) => data.users.filter(user => user.rank === route[step] && user.department === (step < 2 ? centralDepartment : department));
+function routedRecipients(record,purpose,department=record.department) {
+  if (!routingPurposes.includes(purpose)) return [];
+  if (record.step === 0) return eligibleRecipients(record,1);
+  if (record.step === 1) return eligibleRecipients(record,2,department);
+  return data.users.filter(user => {
+    const rankStep = route.indexOf(user.rank);
+    if (purpose === 'For review / approval' && record.step === 2 && rankStep === 1) return user.department === centralDepartment;
+    return user.department === record.department && rankStep >= 2 && rankStep < archiveStep && (purpose === 'For treatment' ? rankStep > record.step : rankStep < record.step);
+  });
+}
+const recipientOptions = (record,purpose='For treatment',department=record.department) => routedRecipients(record,purpose,department).map(user => `<option value="${escapeHTML(user.id)}">${escapeHTML(user.name)} / ${escapeHTML(user.rank)}${user.grade ? ` / GL${String(user.grade).padStart(2,'0')}` : ''}</option>`).join('');
+const previousSender = record => {const event = record.history.findLast(item => item.toOfficeID === record.assigneeID && item.fromOfficeID !== record.assigneeID && /^(Minuted from|Resubmitted)/.test(item.action)); return event && data.users.find(user => user.id === event.fromOfficeID);};
+const deskLabel = (record,step=record.step) => `${route[step]}${step >= 2 && step < archiveStep ? ` / ${departmentLabel(record.department)} / GL${String(staffRanks[step-2].grade).padStart(2,'0')}` : ''}`;
+const canAccessRecord = record => Boolean(record && canAccessDepartment(record.department));
+const canActOnRecord = record => canAccessRecord(record) && record.assigneeID === currentOfficer.id;
 const visibleRecords = () => data.records.filter(canAccessRecord);
 const recordUnit = record => record.unit || departmentUnits[record.department]?.[record.type === 'Circular' ? 1 : 0];
-const visibleDrafts = () => (data.processDrafts || []).filter(canAccessRecord);
+const visibleDrafts = () => (data.processDrafts || []).filter(draft => draft.createdBy === currentOfficer.id);
 const pending = () => visibleRecords().filter(record => record.status === 'Pending');
 const overdue = () => pending().filter(record => record.due < TODAY);
 const closed = () => visibleRecords().filter(record => ['Approved','Archived'].includes(record.status));
@@ -59,7 +107,7 @@ const getRecord = id => visibleRecords().find(record => record.id === id);
 const isLate = record => record.status === 'Pending' && record.due < TODAY;
 const dateLabel = value => new Date(`${value}T12:00:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
 const dueLabel = record => isLate(record) ? 'Overdue' : record.due === TODAY ? 'Due today' : `Due ${dateLabel(record.due)}`;
-const badge = record => `<span class="badge ${isLate(record) ? 'overdue' : record.status.toLowerCase()}">${escapeHTML(isLate(record) ? 'Overdue' : record.status === 'Pending' ? 'In review' : record.status === 'Correction' ? 'Returned for action' : record.status)}</span>`;
+const badge = record => `<span class="badge ${isLate(record) ? 'overdue' : record.status === 'Treated' ? 'draft' : record.status.toLowerCase()}">${escapeHTML(isLate(record) ? 'Overdue' : record.status === 'Pending' ? record.routingPurpose === 'For review / approval' ? 'For review' : 'For treatment' : record.status === 'Correction' ? 'Returned for action' : record.status === 'Treated' ? 'Awaiting review' : record.status)}</span> ${priorityBadge(record)}`;
 const fileIcon = record => `<span class="file-icon ${record.type === 'Circular' ? 'green' : record.type === 'Report' ? 'blue' : ''}">${icon('file')}</span>`;
 const button = (label,action,style='btn',extra='') => `<button ${extra.includes('type=') ? '' : 'type="button"'} class="${style}" data-action="${action}" ${extra}>${label}</button>`;
 const options = (values,selected) => values.map(value => `<option ${value === selected ? 'selected' : ''}>${escapeHTML(value)}</option>`).join('');
@@ -94,6 +142,10 @@ function syncShell() {
   $('#nav-draft').textContent = visibleDrafts().length;
   $('#nav-open').textContent = queueRecords('open-tasks').length;
   $('#nav-completed').textContent = closed().length;
+  $('.sidebar-user .avatar').textContent = initials(currentOfficer.name);
+  $('.sidebar-user > div').innerHTML = `${escapeHTML(currentOfficer.name)}<span>${escapeHTML(currentOfficer.role)}${currentOfficer.grade ? ` / GL${String(currentOfficer.grade).padStart(2,'0')}` : ''}</span>`;
+  $('.top-avatar').textContent = initials(currentOfficer.name);
+  $('.top-avatar').setAttribute('aria-label',`Switch prototype desk. Current desk: ${currentOfficer.role}`);
   document.querySelectorAll('[data-page]').forEach(link => {
     const active = link.dataset.page === state.page || state.page === 'dashboard' && link.dataset.page === 'inbox';
     link.classList.toggle('active',active);
@@ -117,14 +169,15 @@ function taskRow(record) {
 const officeQueues = {inbox:{label:'Inbox',description:'Incoming tasks waiting for you to start work.',symbol:'inbox'},draft:{label:'Draft',description:'Processes you have prepared but not yet submitted.',symbol:'file'},'open-tasks':{label:'Open Tasks',description:'Tasks already started. Continue from the current office step.',symbol:'clock'},completed:{label:'Completed',description:'Processes with a final decision and their recorded history.',symbol:'check'}};
 function queueRecords(queue) {
   if (queue === 'completed') return closed();
-  return visibleRecords().filter(record => ['Pending','Correction'].includes(record.status) && Boolean(record.taskStarted) === (queue === 'open-tasks')).sort((a,b) => a.due.localeCompare(b.due));
+  return visibleRecords().filter(record => canActOnRecord(record) && (queue === 'inbox' ? ['Pending','Correction','Treated'] : ['Pending','Correction']).includes(record.status) && Boolean(record.taskStarted) === (queue === 'open-tasks')).sort(priorityOrder);
 }
 function officeTaskList(records,drafts=false) {
+  records = [...records].sort(priorityOrder);
   return `<div class="office-task-list">${records.map(record => {
     const complete = ['Approved','Archived'].includes(record.status);
-    const action = drafts ? 'continue-process' : complete ? 'document' : 'start-task';
-    const label = drafts ? 'Continue Process' : complete ? 'View Record' : record.taskStarted ? 'Continue Task' : 'Start Task';
-    return `<article class="office-task-item">${fileIcon(record)}<div class="office-task-copy"><span class="eyebrow">${escapeHTML(drafts ? 'DRAFT PROCESS' : record.id)} / ${escapeHTML(record.unit || recordUnit(record))}</span><h2>${escapeHTML(record.title || 'Untitled process')}</h2><p>${escapeHTML(drafts ? `Not submitted / Step ${record.step} of 3` : complete ? `Final decision recorded / ${record.status === 'Archived' ? 'Archived' : 'Ready for filing'}` : `${record.status === 'Correction' ? 'Returned for action (not rejected)' : 'Review & decision'} / At ${route[record.step]} / ${dueLabel(record)}`)}</p></div><span class="badge ${drafts ? 'draft' : complete ? 'approved' : record.status === 'Correction' ? 'correction' : record.taskStarted ? 'pending' : 'draft'}">${drafts ? 'Draft' : complete ? 'Completed' : record.status === 'Correction' ? 'Returned' : record.taskStarted ? 'In progress' : 'Not started'}</span><div class="office-task-actions">${button(`${label} ${icon('arrow')}`,action,'btn btn-primary btn-sm',`data-id="${escapeHTML(record.id)}"`)}${button('View Trail',drafts ? 'view-draft-trail' : 'view-trail','text-link',`data-id="${escapeHTML(record.id)}"`)}</div></article>`;
+    const action = drafts ? 'continue-process' : complete || record.status === 'Treated' || !canActOnRecord(record) ? 'document' : 'start-task';
+    const label = drafts ? 'Continue Process' : complete || record.status === 'Treated' || !canActOnRecord(record) ? 'View Record' : record.taskStarted ? 'Continue Task' : 'Start Task';
+    return `<article class="office-task-item">${fileIcon(record)}<div class="office-task-copy"><span class="eyebrow">${escapeHTML(drafts ? 'DRAFT PROCESS' : record.id)} / ${escapeHTML(record.unit || recordUnit(record))}</span><h2>${escapeHTML(record.title || 'Untitled process')}</h2><p>${escapeHTML(drafts ? `Not submitted / Step ${record.step} of 3` : complete ? `Historical final decision / ${record.status === 'Archived' ? 'Archived' : 'Ready for filing'}` : `${record.status === 'Correction' ? 'Returned for action (not rejected)' : record.status === 'Treated' ? 'Treatment recorded / Awaiting final decision' : 'Minuting & treatment'} / At ${deskLabel(record)} / ${dueLabel(record)}`)}</p>${priorityBadge(record)}</div><span class="badge ${drafts ? 'draft' : complete ? 'approved' : record.status === 'Correction' ? 'correction' : record.taskStarted ? 'pending' : 'draft'}">${drafts ? 'Draft' : complete ? 'Completed' : record.status === 'Treated' ? 'Awaiting decision' : record.status === 'Correction' ? 'Returned' : record.taskStarted ? 'In progress' : 'Not started'}</span><div class="office-task-actions">${button(`${label} ${icon('arrow')}`,action,'btn btn-primary btn-sm',`data-id="${escapeHTML(record.id)}"`)}${button('View Trail',drafts ? 'view-draft-trail' : 'view-trail','text-link',`data-id="${escapeHTML(record.id)}"`)}</div></article>`;
   }).join('')}</div>`;
 }
 function officeQueuePage(queue) {
@@ -132,11 +185,13 @@ function officeQueuePage(queue) {
   const records = queue === 'draft' ? visibleDrafts() : queueRecords(queue);
   const query = (state.taskQuery || '').toLowerCase().trim();
   const filtered = records.filter(record => `${record.title} ${record.id}`.toLowerCase().includes(query));
-  return `<div class="office-workspace">${heading('MINISTRY WORKSPACE',config.label,config.description,button(`${icon('plus')} Start Process`,'go-start-process','btn btn-primary'))}<nav class="office-queue-tabs" aria-label="My work">${Object.entries(officeQueues).map(([key,item]) => `<a href="#${key}" ${key === queue ? 'aria-current="page"' : ''}>${icon(item.symbol)}${item.label}<span>${key === 'draft' ? visibleDrafts().length : queueRecords(key).length}</span></a>`).join('')}</nav><div class="office-list-heading"><span>${escapeHTML(currentOfficer.department)} <span aria-hidden="true">/</span> ${records.length} ${queue === 'draft' ? 'draft processes' : 'tasks'}</span><label class="search-field">${icon('search')}<input id="task-search" aria-label="Search ${config.label}" placeholder="Search title or reference..." value="${escapeHTML(state.taskQuery || '')}" autocomplete="off"/></label></div><div id="office-task-results">${filtered.length ? officeTaskList(filtered,queue === 'draft') : emptyState(config.symbol,query ? 'No matching tasks' : `No ${config.label.toLowerCase()} items`,query ? 'Try a different title or reference.' : queue === 'draft' ? 'Start a process. Your progress is saved here until you submit it.' : 'Tasks appear here as work moves through the office.',button('Start Process','go-start-process','btn'))}</div><div class="office-workspace-note">${icon('shield')}<p>Fictional ${escapeHTML(currentOfficer.department)} workspace. Review desks are simulated up to the Permanent Secretary. No real account or ministry records are connected.</p><a class="text-link" href="#repository">Document Repository ${icon('folder')}</a></div></div>`;
+  return `<div class="office-workspace">${heading('MINISTRY WORKSPACE',config.label,config.description,button(`${icon('plus')} Start Process`,'go-start-process','btn btn-primary'))}<nav class="office-queue-tabs" aria-label="My work">${Object.entries(officeQueues).map(([key,item]) => `<a href="#${key}" ${key === queue ? 'aria-current="page"' : ''}>${icon(item.symbol)}${item.label}<span>${key === 'draft' ? visibleDrafts().length : queueRecords(key).length}</span></a>`).join('')}</nav><div class="office-list-heading"><span>${escapeHTML(departmentLabel(currentOfficer.department))} / ${escapeHTML(currentOfficer.rank)} / ${records.length} ${queue === 'draft' ? 'draft processes' : 'tasks'}</span><label class="search-field">${icon('search')}<input id="task-search" aria-label="Search ${config.label}" placeholder="Search title or reference..." value="${escapeHTML(state.taskQuery || '')}" autocomplete="off"/></label></div><div id="office-task-results">${filtered.length ? officeTaskList(filtered,queue === 'draft') : emptyState(config.symbol,query ? 'No matching tasks' : `No ${config.label.toLowerCase()} items`,query ? 'Try a different title or reference.' : queue === 'draft' ? 'Start a process. Your progress is saved here until you submit it.' : 'Only tasks assigned to this desk appear here.',button('Switch desk','profile','btn'))}</div>
+    <div class="office-workspace-note">${icon('shield')}<p>Only tasks assigned to your desk appear here. Fictional accounts and records only.</p><a class="text-link" href="#repository">Document Repository ${icon('folder')}</a></div></div>`;
 }
 function startProcessPage() {
+  if (currentOfficer.rank !== 'PS Registry') return `${heading('REGISTRY INTAKE','Start Process','Incoming mail is registered at the Permanent Secretary Registry.')}${emptyState('shield','Receipt starts at PS Registry','Switch to the PS Registry desk to register a soft copy or a scanned hard copy.',button('Switch prototype desk','profile','btn btn-primary'))}`;
   const processes = [{scenario:'liaison',name:'Incoming Correspondence',description:'Register an incoming letter, confirm its details and send it to the first review desk.',symbol:'inbox'},{scenario:'clarification',name:'Internal Memo',description:'Prepare an internal office memo, set its deadline and choose the approval route.',symbol:'file'},{scenario:'procurement',name:'Approval Request',description:'Prepare a request and supporting summary for review and a final decision.',symbol:'check'}];
-  return `<div class="office-workspace">${heading('NEW OFFICE WORK', 'Start Process','Choose a process to prepare. Submit it when ready, or continue it later from Draft.')}<div class="office-process-grid">${processes.map((process,index) => `<article class="office-process-card"><span class="eyebrow">PROCESS ${String(index+1).padStart(2,'0')}</span>${icon(process.symbol)}<h2>${process.name}</h2><p>${process.description}</p><span class="office-process-route">Registry &rarr; Reviewing officer &rarr; Director &rarr; Permanent Secretary</span>${button(`Start Process ${icon('arrow')}`,'start-process','btn btn-primary',`data-scenario="${process.scenario}"`)}</article>`).join('')}</div><div class="notice">${icon('file')}<span>Unsubmitted processes are saved as drafts in this browser. Submitted processes receive a reference and enter Inbox. No real documents are uploaded.</span></div></div>`;
+  return `<div class="office-workspace">${heading('NEW OFFICE WORK', 'Start Process','Register soft-copy mail or a scanned hard copy at PS Registry. The PS confirms the responsible department.')}<div class="office-process-grid">${processes.map((process,index) => `<article class="office-process-card"><span class="eyebrow">PROCESS ${String(index+1).padStart(2,'0')}</span>${icon(process.symbol)}<h2>${process.name}</h2><p>${process.description}</p><span class="office-process-route">PS Registry &rarr; PS &rarr; Responsible Director &rarr; Appropriate officer for treatment / Authorized senior review</span>${button(`Start Process ${icon('arrow')}`,'start-process','btn btn-primary',`data-scenario="${process.scenario}"`)}</article>`).join('')}</div><div class="notice">${icon('file')}<span>Soft copies are the usual receipt channel. Paper mail is scanned by Registry before registration. The organogram defines authority, not compulsory stops. Primary-document capture is fictional metadata only; minute attachments are browser-local files.</span></div></div>`;
 }
 function workGroupPage() {
   const records = visibleRecords().filter(record => ['Pending','Correction'].includes(record.status));
@@ -153,15 +208,18 @@ function signaturesPage() {
   }).join('') || emptyState('shield','No documents available','Start a process or open your department repository to find documents.')}</div></div>`;
 }
 function nextAction(record) {
-  if (record.status === 'Correction') return `Returned to ${route[record.step]} for further action, not rejected. Review the return note, then send it to ${route[record.resumeStep ?? 2]} when ready.`;
+  if (record.status === 'Correction') return `Returned to ${deskLabel(record)} for further action, not rejected. Review the return note, then resubmit only to ${deskLabel(record,record.resumeStep)}.`;
   if (record.status === 'Approved') return 'Archive the approved record, keeping its minutes and decision trail together.';
   if (record.status === 'Archived') return 'No action pending. The filed record and its history remain available.';
-  return `The ${route[record.step]} should review the submission and ${record.step < 3 ? `forward a decision to the ${route[record.step+1]}` : 'record a final decision'}.`;
+  if (record.status === 'Treated') return 'The assigned officer has recorded the treatment outcome. Route the report to an eligible senior officer for review. This does not constitute final approval or authorize dispatch or archiving.';
+  if (record.step === 1) return 'The Permanent Secretary reviews the subject, confirms the responsible department, and minutes the mail to that department\'s Director.';
+  if (record.step === 0) return 'PS Registry verifies the soft copy or scanned hard copy and forwards it to the Permanent Secretary. Registry cannot bypass the PS.';
+  return `The ${deskLabel(record)} records the instruction and chooses an appropriate subordinate for treatment or an eligible senior officer for review. Intermediate ranks are not compulsory stops. ${record.routingPurpose === 'For review / approval' ? 'Review was requested; no approval has been granted.' : 'Treatment may be completed at this desk without forwarding.'}`;
 }
 function journeyCard(record,compact=false) {
-  const complete = ['Approved','Archived'].includes(record.status);
   const latest = record.history.filter(event => !['Minute added','Follow-up draft saved'].includes(event.action)).at(-1);
-  return `<article class="journey-card ${compact ? 'compact' : ''}"><div class="journey-title"><div><p class="eyebrow">${escapeHTML(record.id)} &middot; ${escapeHTML(record.department)}</p><h2>${escapeHTML(record.title)}</h2></div>${badge(record)}</div><div class="journey-track" aria-label="File routing stages">${route.map((desk,index) => {const done = index < record.step || complete && index < 4 || record.status === 'Archived' && index === 4; return `<div class="journey-stop ${done ? 'done' : index === record.step ? 'current' : ''}"><span class="journey-stop-marker">${done ? icon('check') : (index+1).toString().padStart(2,'0')}</span><strong>${desk}</strong><small>${index === record.step ? record.status === 'Archived' ? 'Filed' : record.status === 'Approved' ? 'Ready to file' : record.status === 'Correction' ? 'Correction needed' : 'Here now' : done ? 'Passed' : 'Next'}</small></div>`;}).join('')}</div><div class="journey-insight ${isLate(record) ? 'needs-attention' : ''}">${icon(isLate(record) ? 'clock' : 'arrow')}<div><strong>${isLate(record) ? `Waiting past the ${dateLabel(record.due)} deadline` : `Current position: ${record.status === 'Archived' ? 'Filed in the archive' : route[record.step]}`}</strong><p>${escapeHTML(nextAction(record))}</p></div></div>${!compact ? `<div class="journey-latest"><span class="eyebrow">LAST RECORDED HANDOFF</span><p>${escapeHTML(latest?.action || 'Registered')} <span class="footer-separator">&middot;</span> ${escapeHTML(latest?.by || record.owner)}</p><span class="subtle">${escapeHTML(latest?.note || '')}</span></div>` : ''}<div class="journey-actions">${button(`Open decision workspace ${icon('arrow')}`,'document','btn btn-primary btn-sm',`data-id="${escapeHTML(record.id)}"`)}${record.status === 'Pending' ? button('Draft a follow-up','follow-up','text-link',`data-id="${escapeHTML(record.id)}"`) : ''}</div></article>`;
+  const visited = new Set(record.history.filter(event => Number.isInteger(event.fromStep)).map(event => event.fromStep));
+  return `<article class="journey-card ${compact ? 'compact' : ''}"><div class="journey-title"><div><p class="eyebrow">${escapeHTML(record.id)} &middot; ${escapeHTML(departmentLabel(record.department))}</p><h2>${escapeHTML(record.title)}</h2></div>${badge(record)}</div><div class="journey-track" tabindex="0" aria-label="File assignment stages, horizontally scrollable">${route.map((desk,index) => {const done = visited.has(index) && index !== record.step; return `<div class="journey-stop ${index === record.step ? 'current' : done ? 'done' : ''}"><span class="journey-stop-marker">${done ? icon('check') : (index+1).toString().padStart(2,'0')}</span><strong>${desk}</strong><small>${index >= 2 && index < archiveStep ? `GL${String(staffRanks[index-2].grade).padStart(2,'0')} / ` : ''}${index === record.step ? record.status === 'Archived' ? 'Filed' : record.status === 'Approved' ? 'Ready to file' : record.status === 'Treated' ? 'Treatment recorded' : record.status === 'Correction' ? 'Correction needed' : 'Here now' : done ? 'Handoff recorded' : index === archiveStep ? 'After final approval' : 'No handoff recorded'}</small></div>`;}).join('')}</div><div class="journey-insight ${isLate(record) ? 'needs-attention' : ''}">${icon(isLate(record) ? 'clock' : 'arrow')}<div><strong>${escapeHTML(isLate(record) ? `Waiting past the ${dateLabel(record.due)} deadline` : `Current position: ${deskLabel(record)}`)}</strong><p>${escapeHTML(nextAction(record))}</p></div></div>${!compact ? `<div class="journey-latest"><span class="eyebrow">LAST RECORDED HANDOFF</span><p>${escapeHTML(latest?.action || 'Registered')} &middot; ${escapeHTML(latest?.by || record.owner)}</p><span class="subtle">${escapeHTML(latest?.note || '')}</span></div>` : ''}<div class="journey-actions">${button(`Open process workspace ${icon('arrow')}`,'document','btn btn-primary btn-sm',`data-id="${escapeHTML(record.id)}"`)}${record.status === 'Pending' ? button('Draft a follow-up','follow-up','text-link',`data-id="${escapeHTML(record.id)}"`) : ''}</div></article>`;
 }
 function journeysPage() {
   if (!getRecord(state.journeyID)) state.journeyID = overdue()[0]?.id || visibleRecords()[0]?.id;
@@ -196,7 +254,7 @@ function repositoryPage() {
   <div class="section-heading"><h2>${state.department === 'All departments' ? 'All documents' : escapeHTML(state.department)}</h2><span class="subtle">Search titles, references and sample content</span></div><div class="toolbar"><label class="search-field">${icon('search')}<input id="repository-search" aria-label="Search repository" value="${escapeHTML(state.query)}" placeholder="Find a document, reference or keyword..." autocomplete="off"/></label><div class="filters"><select id="department-filter" class="select-control" aria-label="Filter by department">${options(['All departments',...departments],state.department)}</select><select id="status-filter" class="select-control" aria-label="Filter by status">${options(['All statuses','Pending','Overdue','Approved','Correction','Archived','Draft'],state.status)}</select><div class="view-switch">${button(icon('list'),'view-list',state.view === 'list' ? 'active' : '',`aria-label="List view" aria-pressed="${state.view === 'list'}"`)}${button(icon('grid'),'view-grid',state.view === 'grid' ? 'active' : '',`aria-label="Grid view" aria-pressed="${state.view === 'grid'}"`)}</div></div></div><div id="repository-results">${repositoryResults()}</div>`;
 }
 function approvalsPage() {
-  const groups = {Pending:pending(),Overdue:overdue(),Correction:visibleRecords().filter(record => record.status === 'Correction'),Completed:closed()};
+  const groups = {Pending:pending(),Overdue:overdue(),Correction:visibleRecords().filter(record => record.status === 'Correction'),Treated:visibleRecords().filter(record => record.status === 'Treated'),Completed:closed()};
   return `${heading('WORKFLOW & APPROVALS','Decisions that move things.','Review, minute and route documents. Nothing gets lost between desks.',button(`${icon('plus')} Capture document`,'capture','btn btn-primary'))}
   <div class="tabs">${Object.keys(groups).map(tab => button(`${tab === 'Pending' ? 'Awaiting action' : tab === 'Correction' ? 'For correction' : tab} <span class="count-pill">${groups[tab].length}</span>`,'approval-tab',`tab ${state.approvalTab === tab ? 'active' : ''}`,`data-tab="${tab}" aria-pressed="${state.approvalTab === tab}"`)).join('')}</div>
   ${overdue().length && ['Pending','Overdue'].includes(state.approvalTab) ? `<div class="approval-summary">${icon('clock')}<span><strong>${overdue().length} overdue document${overdue().length === 1 ? '' : 's'}.</strong> Open a document to review its routing history and take action.</span></div>` : ''}
@@ -245,7 +303,7 @@ function askArchive(question) {
 }
 function leadershipPage() {
   const late = overdue();
-  const desks = route.slice(1,4).map((desk,index) => ({desk,index:index+1,records:pending().filter(record => record.step === index+1)}));
+  const desks = route.slice(0,archiveStep).map((desk,index) => ({desk,index,records:pending().filter(record => record.step === index)}));
   const busiest = [...desks].sort((a,b) => b.records.length-a.records.length)[0];
   return `${heading('THE LEADERSHIP COMMAND VIEW','Find the hold-up. Move the office.','From a departmental count to a desk, a source record and a considered intervention.',`${button(`${icon('download')} Export snapshot`,'export','btn')}${button(`${icon('spark')} Prepare office brief`,'office-brief','btn btn-primary')}`)}
   <section class="command-ribbon"><div><p class="eyebrow">THE CURRENT OFFICE SIGNAL</p><h2>${late.length ? `${late.length} files need attention. Not another dashboard.` : 'No overdue files. Keep the office moving.'}</h2><p>${busiest.records.length ? `The ${busiest.desk} desk holds ${busiest.records.length} of ${pending().length} pending files.` : 'No documents are waiting for approval.'} These are counts from the sample workflow, not a prediction of officer performance.</p></div><span class="command-ribbon-number">${late.length.toString().padStart(2,'0')}<small>OVERDUE</small></span></section>
@@ -279,6 +337,7 @@ function adminPage() {
 function showModal(title,subtitle,body,footer='',wide=false) {
   if (!$('#modal-root').firstElementChild) lastFocus = document.activeElement;
   $('#modal-root').innerHTML = `<div class="modal-overlay"><section class="modal ${wide ? 'wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header class="modal-header"><div class="modal-title-group"><h2 id="modal-title">${title}</h2>${subtitle ? `<p>${subtitle}</p>` : ''}</div>${button(icon('close'),'close-modal','icon-button','aria-label="Close dialog"')}</header><div class="modal-body">${body}</div>${footer ? `<footer class="modal-footer">${footer}</footer>` : ''}</section></div>`;
+  for (const form of document.querySelectorAll('.modal #comment-form,.modal #minute-draft-form,.modal #handoff-form,.modal #treatment-form,.modal #correction-form,.modal #resubmit-form')) form.insertAdjacentHTML('beforeend',minuteAttachmentFields(form.id));
   decoratePrototype();
   document.body.style.overflow = 'hidden';
   $('#sidebar').inert = true;
@@ -302,17 +361,48 @@ function documentPreview(record) {
   return `<div class="document-layout"><div class="document-preview"><div class="preview-toolbar"><span>${escapeHTML(record.file)}</span><span>Illustrative preview &middot; 1 page</span></div><article class="letter-paper"><div class="letter-letterhead"><div class="letter-seal">OS</div><h3>OFFICE OF THE SECRETARIAT</h3><p>${escapeHTML(record.department.toUpperCase())} &middot; DEMONSTRATION OFFICE</p></div><div class="letter-ref"><span>REF: ${escapeHTML(record.id)}</span><span>${dateLabel(record.date)} 2026</span></div><p>To: The ${escapeHTML(completed ? 'Permanent Secretary' : route[record.step])}</p><h4>${escapeHTML(record.title)}</h4><p>${escapeHTML(record.summary)}</p><p>This submission is forwarded for your consideration and the necessary action. Kindly record your decision and any supporting observations in the document workflow.</p><p>Please accept the assurances of our regards.</p><div class="signature">${escapeHTML(record.sender.split(' ').slice(0,2).join(' '))}</div><p style="margin-top:4px;font-size:9px">${escapeHTML(record.sender)}<br>${escapeHTML(record.department)}</p>${data.settings.watermark ? '<div class="letter-watermark">FICTIONAL RECORD &middot; PROTOTYPE PREVIEW</div>' : ''}</article></div><aside class="document-meta"><h3>Document details</h3><dl class="metadata-list"><div><dt>Status</dt><dd>${badge(record)}</dd></div><div><dt>File reference</dt><dd>${escapeHTML(record.id)}</dd></div><div><dt>Department</dt><dd>${escapeHTML(record.department)}</dd></div><div><dt>Document type</dt><dd>${escapeHTML(record.type)}</dd></div><div><dt>Registered by</dt><dd>${escapeHTML(record.owner)}</dd></div><div><dt>Confidentiality</dt><dd>${escapeHTML(record.level)}</dd></div><div><dt>Review deadline</dt><dd>${dateLabel(record.due)} 2026</dd></div><div><dt>Version</dt><dd>v${record.version}.0</dd></div></dl><h3>The routing trail</h3><ol class="route-list">${route.map((desk,index) => `<li class="route-step"><span class="route-marker ${index < record.step || (completed && index < 4) || (record.status === 'Archived' && index === 4) ? 'done' : index === record.step ? 'current' : ''}">${index < record.step || completed && index < 4 || record.status === 'Archived' && index === 4 ? icon('check') : index+1}</span><div>${desk}<small>${index === record.step ? record.status === 'Correction' ? 'Correction requested' : record.status === 'Archived' ? 'Filed with history' : record.status === 'Approved' ? 'Ready to archive' : 'Current desk' : index < record.step ? 'Completed' : 'Next step'}</small></div></li>`).join('')}</ol><div class="notice">${icon('shield')}<span>This is a rendered sample letter, not the contents of an uploaded file. Approvals are simulated, not legally binding signatures.</span></div></aside></div>`;
 }
 function documentHistory(record) {
-  return `<ol class="history-list">${record.history.map(event => `<li><span class="activity-avatar">${escapeHTML(initials(event.by))}</span><div><strong>${escapeHTML(event.action)}</strong><p>${escapeHTML(event.note || '')}</p><small>${escapeHTML(event.by)} &middot; ${new Date(event.time).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</small></div></li>`).join('')}</ol><form id="comment-form" class="comment-box"><label for="document-comment">Add a minute or comment</label><textarea id="document-comment" name="comment" placeholder="Record a note for the next officer..." required maxlength="1000"></textarea>${button(`${icon('plus')} Add comment`,'submit-comment','btn btn-primary btn-sm','type="submit"')}</form>`;
+  return `<ol class="history-list">${record.history.map(event => `<li><span class="activity-avatar">${escapeHTML(initials(event.by))}</span><div><strong>${escapeHTML(event.action)}</strong><p>${escapeHTML(event.note || '')}</p>${minuteAttachments(record,event)}<small>${escapeHTML(event.by)} &middot; ${new Date(event.time).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</small></div></li>`).join('')}</ol><form id="comment-form" class="comment-box"><label for="document-comment">Add a minute or comment</label><textarea id="document-comment" name="comment" placeholder="Record a note for the next officer..." required maxlength="1000"></textarea>${button(`${icon('plus')} Add comment`,'submit-comment','btn btn-primary btn-sm','type="submit"')}</form>`;
+}
+function minuteAttachmentFields(formID) {
+  return `<div class="minute-attachment-fields"><div class="field"><label for="${formID}-attachments">Supporting documents / optional</label><input id="${formID}-attachments" type="file" name="attachments" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg"/><small>Up to 3 files, 1 MB each and 2 MB per minute. PDF, Office documents, text and images only. Files are read and saved locally in this browser, not uploaded. Use fictional files only.</small><p class="minute-attachment-selection" aria-live="polite">No supporting documents selected.</p></div><label class="check-label"><input type="checkbox" name="attachmentConfirmed"/><span>If attaching documents, I confirm these are fictional files and consent to browser-local storage. No malware scanning or production document security is provided.</span></label></div>`;
+}
+async function readMinuteAttachments(form) {
+  const files = [...(form.querySelector('input[name="attachments"]')?.files || [])];
+  if (!files.length) return [];
+  if (!form.querySelector('input[name="attachmentConfirmed"]')?.checked) throw new Error('Confirm that attached files are fictional before saving.');
+  if (files.length > 3 || files.some(file => file.size > 1024*1024) || files.reduce((sum,file) => sum+file.size,0) > 2*1024*1024) throw new Error('Use at most 3 files, no larger than 1 MB each and 2 MB combined.');
+  if (files.some(file => !/\.(pdf|docx?|xlsx?|txt|png|jpe?g)$/i.test(file.name))) throw new Error('Attach PDF, Office documents, text or PNG/JPEG files. Scripts, HTML and SVG are not permitted.');
+  if (JSON.stringify(data).length+files.reduce((sum,file) => sum+Math.ceil(file.size*4/3),0) > 3500000) throw new Error('This prototype has reached its browser attachment budget. No documents were added.');
+  return Promise.all(files.map(file => new Promise((resolve,reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('A supporting document could not be read. No minute was saved.'));
+    reader.onload = () => resolve({id:crypto.randomUUID(),name:file.name,size:file.size,type:file.type || 'application/octet-stream',dataURL:reader.result});
+    reader.readAsDataURL(file);
+  })));
+}
+function minuteAttachments(record,event) {
+  return event.attachments?.length ? `<div class="minute-attachments"><strong>Supporting documents (${event.attachments.length})</strong><ul>${event.attachments.map(attachment => `<li>${icon('file')}<span>${escapeHTML(attachment.name)}<small>${(attachment.size/1024).toFixed(1)} KB / Version ${event.version || record.version}.0</small></span>${button('Download','download-minute-attachment','btn btn-sm',`data-id="${escapeHTML(record.id)}" data-attachment="${escapeHTML(attachment.id)}" aria-label="Download ${escapeHTML(attachment.name)}"`)}</li>`).join('')}</ul><small>Browser-local files only. Download does not imply malware scanning or authenticity.</small></div>` : '';
+}
+const minuteEvents = record => record.history.filter(event => /^(Minute added|Minuted from|Returned|Resubmitted|Treatment outcome recorded)/.test(event.action));
+function documentMinutes(record) {
+  const minutes = minuteEvents(record);
+  return `<section class="task-minutes"><div class="section-heading"><h2>Minutes & instructions <span class="count-pill">${minutes.length}</span></h2><span class="subtle">Oldest to newest / Full recorded text</span>${canActOnRecord(record) && ['Pending','Correction'].includes(record.status) ? button('Add a minute','draft-minute','btn btn-sm') : ''}</div><p class="subtle">Read each desk's instructions, responses and supporting documents. These are separate from approval and signatures.</p>
+    ${minutes.length ? `<ol class="task-minute-list">${minutes.map((event,index) => `<li><article class="task-minute">
+      <header><span class="avatar" aria-hidden="true">${escapeHTML(initials(event.by))}</span><div><span class="eyebrow">MINUTE ${String(index+1).padStart(2,'0')}${event.version ? ` / VERSION ${event.version}.0` : ''}</span><h3>${escapeHTML(event.by)}</h3><p>${escapeHTML(event.desk || event.action)}</p></div><time datetime="${escapeHTML(event.time)}">${escapeHTML(new Date(event.time).toLocaleString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}))}</time></header>
+      <p class="task-minute-action">${escapeHTML(event.action)}</p>${Number.isInteger(event.fromStep) && Number.isInteger(event.toStep) ? `<p class="task-minute-handoff">${escapeHTML(route[event.fromStep])} &rarr; ${escapeHTML(route[event.toStep])}</p>` : ''}<div class="task-minute-text">${escapeHTML(event.note || 'No minute text recorded.')}</div>${minuteAttachments(record,event)}</article></li>`).join('')}</ol>` : emptyState('file','No minutes recorded yet','The sending officer\'s minute will appear here when the file is forwarded. No instructions are invented.')}</section>`;
 }
 function processTrail(record) {
   const lastReturn = record.history.findLast(event => event.action.startsWith('Returned'));
-  return `<section class="process-location"><p class="eyebrow">CURRENT PROCESS LOCATION</p><h2>${record.status === 'Archived' ? 'Filed in Archive' : record.status === 'Approved' ? 'Approved by Permanent Secretary / Ready for filing' : `At ${escapeHTML(route[record.step])}`}</h2><p>${escapeHTML(record.status === 'Correction' ? 'Returned for further action. This process is not rejected.' : nextAction(record))}</p>${lastReturn ? `<div class="process-return-note"><strong>Most recent return</strong><p>${escapeHTML(lastReturn.note)}</p><small>${escapeHTML(lastReturn.by)} / ${new Date(lastReturn.time).toLocaleString('en-GB')}</small></div>` : ''}</section><div class="process-desk-map" aria-label="Ministry workflow desks">${route.map((desk,index) => `<div class="${index === record.step ? 'current' : ''}">${icon(index === record.step ? 'inbox' : 'users')}<strong>${escapeHTML(desk)}</strong><span>${index === record.step ? record.status === 'Approved' ? 'Ready for filing' : 'Current location' : 'Workflow desk'}</span></div>`).join('')}</div><div class="section-heading"><h2>Process Audit Log</h2><span class="subtle">${record.history.length} recorded events</span></div>${documentHistory(record)}`;
+  return `<section class="process-location"><p class="eyebrow">CURRENT PROCESS LOCATION</p><h2>${record.status === 'Archived' ? 'Filed in Archive' : record.status === 'Approved' ? 'Historical approval / Ready for filing' : `At ${escapeHTML(deskLabel(record))}`}</h2><p>Assigned officer: ${escapeHTML(routeOffice(record)?.name || 'Unassigned')}</p><p>${escapeHTML(nextAction(record))}</p>${lastReturn ? `<div class="process-return-note"><strong>Most recent return</strong><p>${escapeHTML(lastReturn.note)}</p><small>${escapeHTML(lastReturn.by)} / ${new Date(lastReturn.time).toLocaleString('en-GB')}</small></div>` : ''}</section><div class="process-desk-map" tabindex="0" aria-label="Ministry workflow desks, horizontally scrollable">${route.map((desk,index) => `<div class="${index === record.step ? 'current' : ''}">${icon(index === record.step ? 'inbox' : 'users')}<strong>${escapeHTML(desk)}</strong><span>${index >= 2 && index < archiveStep ? `GL${String(staffRanks[index-2].grade).padStart(2,'0')} / ` : ''}${index === record.step ? record.status === 'Approved' ? 'Ready for filing' : 'Current location' : index === archiveStep ? 'After final approval' : 'Assignment desk'}</span></div>`).join('')}</div><div class="section-heading"><h2>Process Audit Log</h2><span class="subtle">${record.history.length} recorded events</span></div>${documentHistory(record)}`;
 }
 function documentVersions(record) {
   return `<div class="notice">${icon('file')}<span>Version history is simulated. Resubmitting a corrected record creates a new metadata version; no binary documents are stored or compared.</span></div><ol class="history-list">${Array.from({length:record.version},(_,index) => record.version-index).map(version => `<li><span class="activity-avatar">v${version}</span><div><strong>Version ${version}.0 ${version === record.version ? '<span class="badge approved">Current</span>' : ''}</strong><p>${version === 1 ? 'Original registered document' : 'Resubmitted after correction'}</p><small>Sample metadata revision &middot; ${escapeHTML(record.owner)}</small></div></li>`).join('')}</ol>`;
 }
 function decisionBrief(record) {
-  return `<div class="decision-brief"><div class="decision-brief-main"><p class="eyebrow">A READABLE FILE, BEFORE A DECISION</p><h3>${record.status === 'Archived' ? 'The decision is on record.' : 'What this file asks of the office.'}</h3><div class="brief-summary"><span class="summary-label">DOCUMENT SUMMARY</span><p>${escapeHTML(record.summary)}</p>${button(`Read the source letter ${icon('arrow')}`,'doc-tab','text-link','data-tab="preview"')}</div><div class="brief-next"><span class="summary-label">THE NEXT HUMAN ACTION</span><p>${escapeHTML(nextAction(record))}</p></div><div class="decision-brief-tools">${button(`${icon('spark')} Prepare a minute`,'draft-minute','btn')}${button(`Trace the file ${icon('arrow')}`,'trace-file','text-link',`data-id="${escapeHTML(record.id)}"`)}</div></div><aside class="decision-brief-side"><p class="eyebrow">BEFORE YOU ACT</p><div class="brief-fact">${icon('users')}<div><strong>Current desk</strong><span>${escapeHTML(route[record.step])}</span></div></div><div class="brief-fact">${icon('clock')}<div><strong>Deadline</strong><span>${dateLabel(record.due)} 2026 ${isLate(record) ? '/ overdue' : ''}</span></div></div><div class="brief-fact">${icon('lock')}<div><strong>Handling</strong><span>${escapeHTML(record.level)} / ${escapeHTML(record.department)}</span></div></div><div class="brief-fact">${icon('file')}<div><strong>Version</strong><span>v${record.version}.0 / ${record.history.length} trail entries</span></div></div><div class="notice">${icon('spark')}<span>Summary from fictional metadata, not an AI reading of an uploaded file. Check the source and make your own decision.</span></div></aside></div>`;
+  const latest = minuteEvents(record).at(-1);
+  return `<div class="decision-brief"><div class="decision-brief-main"><p class="eyebrow">TASK DETAILS / READ BEFORE ACTING</p><h3>${record.status === 'Archived' ? 'The decision is on record.' : 'What this file asks of the office.'}</h3><div class="brief-summary"><span class="summary-label">DOCUMENT SUMMARY</span><p>${escapeHTML(record.summary)}</p>${button(`Read the source letter ${icon('arrow')}`,'doc-tab','text-link','data-tab="preview"')}</div>
+    <section class="task-latest-minute"><div class="section-heading"><h3>Latest minute / instruction</h3>${button(`View all minutes (${minuteEvents(record).length})`,'doc-tab','text-link','data-tab="minutes"')}</div>${latest ? `<p class="task-minute-text">${escapeHTML(latest.note)}</p><p class="subtle">${escapeHTML(latest.by)} / ${escapeHTML(latest.desk || latest.action)} / ${escapeHTML(new Date(latest.time).toLocaleString('en-GB'))}</p>` : '<p class="subtle">No minutes recorded yet. The sending officer\'s instruction will appear here after forwarding.</p>'}</section>
+    <div class="brief-next"><span class="summary-label">THE NEXT HUMAN ACTION</span><p>${escapeHTML(nextAction(record))}</p></div><div class="decision-brief-tools">${canActOnRecord(record) && ['Pending','Correction'].includes(record.status) ? button(`${icon('spark')} Prepare a minute`,'draft-minute','btn') : ''}${button(`Trace the file ${icon('arrow')}`,'trace-file','text-link',`data-id="${escapeHTML(record.id)}"`)}</div></div><aside class="decision-brief-side"><p class="eyebrow">BEFORE YOU ACT</p><div class="brief-fact">${icon('users')}<div><strong>Current desk</strong><span>${escapeHTML(deskLabel(record))}</span></div></div><div class="brief-fact">${icon('clock')}<div><strong>Deadline</strong><span>${dateLabel(record.due)} 2026 ${isLate(record) ? '/ overdue' : ''}</span></div></div><div class="brief-fact">${icon('lock')}<div><strong>Handling</strong><span>${escapeHTML(record.level)} / ${escapeHTML(departmentLabel(record.department))}</span></div></div><div class="brief-fact">${icon('file')}<div><strong>Version</strong><span>v${record.version}.0 / ${record.history.length} trail entries</span></div></div><div class="notice">${icon('spark')}<span>Summary from fictional metadata, not an AI reading of an uploaded file. Check the source and make your own decision.</span></div></aside></div>`;
 }
 function minuteDraftDialog() {
   const record = getRecord(state.docID);
@@ -324,39 +414,55 @@ function openDocument(id,tab='brief') {
   const record = getRecord(id);
   if (!record) return toast('This document is not available to your department.',true);
   state.docID = id; state.docTab = tab;
-  const tabs = `<div class="tabs doc-tabs">${[['brief','Task Details'],['preview','Source Document'],['trail','Process Trail'],['history','Audit Log'],['versions',`Versions (${record.version})`]].map(([key,label]) => button(label,'doc-tab',`tab ${tab === key ? 'active' : ''}`,`data-tab="${key}" aria-pressed="${tab === key}"`)).join('')}</div>`;
+  const tabs = `<div class="tabs doc-tabs">${[['brief','Task Details'],['minutes',`Minutes (${minuteEvents(record).length})`],['preview','Source Document'],['trail','Process Trail'],['history','Audit Log'],['versions',`Versions (${record.version})`]].map(([key,label]) => button(label,'doc-tab',`tab ${tab === key ? 'active' : ''}`,`data-tab="${key}" aria-pressed="${tab === key}"`)).join('')}</div>`;
   let actions = `<span class="left-note">${icon('lock')} Sample workflow &middot; no live signature</span>`;
-  if (record.status !== 'Archived') actions += button(`${icon('shield')} E-sign document`,'e-sign','btn');
-  if (['Pending','Correction'].includes(record.status) && !record.taskStarted) actions += button('Start Task','start-task','btn btn-primary',`data-id="${escapeHTML(record.id)}"`);
-  if (record.taskStarted || ['Approved','Archived'].includes(record.status)) actions += button(`${icon('return')} Return for Action`,'return','btn');
-  if (record.status === 'Pending' && record.taskStarted) actions += button(`${icon('check')} ${record.step < 3 ? 'Approve & Forward' : 'Approve Process'}`,'approve','btn btn-primary');
-  if (record.status === 'Correction' && record.taskStarted) actions += button(`${icon('upload')} Resubmit Process`,'resubmit','btn btn-primary');
-  if (record.status === 'Approved') actions += button(`${icon('folder')} Archive document`,'archive-document','btn btn-primary');
+  if (canActOnRecord(record) && ['Pending','Correction'].includes(record.status)) actions += button(`${icon('shield')} E-sign document`,'e-sign','btn');
+  if (!canActOnRecord(record)) actions += `<span class="left-note">Assigned to ${escapeHTML(routeOffice(record)?.name || 'an unassigned office')}. Switch desks to act.</span>`;
+  if (canActOnRecord(record) && ['Pending','Correction'].includes(record.status) && !record.taskStarted) actions += button('Start Task','start-task','btn btn-primary',`data-id="${escapeHTML(record.id)}"`);
+  if (canActOnRecord(record) && record.status === 'Pending' && record.taskStarted && previousSender(record)) actions += button(`${icon('return')} Return for Action`,'return','btn');
+  if (canActOnRecord(record) && record.status === 'Pending' && record.taskStarted && record.step >= 2) actions += button('Record Treatment','record-treatment','btn');
+  if (canActOnRecord(record) && (record.status === 'Pending' && record.taskStarted || record.status === 'Treated')) actions += button(`${icon('arrow')} ${record.status === 'Treated' ? 'Route Report for Review' : record.step === 1 ? 'Minute to Director' : 'Route Task'}`,'approve','btn btn-primary');
+  if (canActOnRecord(record) && record.status === 'Correction' && record.taskStarted) actions += button(`${icon('upload')} Resubmit Process`,'resubmit','btn btn-primary');
+  if (canActOnRecord(record) && record.status === 'Approved') actions += button(`${icon('folder')} Archive document`,'archive-document','btn btn-primary');
   if (record.status === 'Archived') actions += '<span class="badge archived">Archived with history</span>';
-  showModal(escapeHTML(record.title),`${escapeHTML(record.id)} &middot; ${escapeHTML(record.department)}`,tabs+(tab === 'brief' ? decisionBrief(record) : tab === 'preview' ? documentPreview(record) : tab === 'trail' ? processTrail(record) : tab === 'history' ? documentHistory(record) : documentVersions(record)+signatureVersionHistory(record)),actions,true);
+  showModal(escapeHTML(record.title),`${escapeHTML(record.id)} &middot; ${escapeHTML(departmentLabel(record.department))}`,tabs+(tab === 'brief' ? decisionBrief(record) : tab === 'minutes' ? documentMinutes(record) : tab === 'preview' ? documentPreview(record) : tab === 'trail' ? processTrail(record) : tab === 'history' ? documentHistory(record) : documentVersions(record)+signatureVersionHistory(record)),actions,true);
 }
-function addHistory(record,action,note,by='Demo officer') {
-  record.history.push({action,note,by,time:new Date().toISOString()});
+function addHistory(record,action,note,by=currentOfficer.name,attachments=[]) {
+  record.history.push({action,note,by,time:new Date().toISOString(),version:record.version,desk:`${currentOfficer.rank} / ${departmentLabel(currentOfficer.department)}${currentOfficer.grade ? ` / GL${String(currentOfficer.grade).padStart(2,'0')}` : ''}`,officeID:currentOfficer.id,...(attachments.length ? {attachments} : {})});
 }
 function approveDocument() {
   const record = getRecord(state.docID);
-  if (!record || record.status !== 'Pending' || !record.taskStarted) return;
-  const desk = route[record.step];
-  if (record.step < 3) { record.step++; addHistory(record,`Approved at ${desk}`,`Forwarded to ${route[record.step]} for the next review.`,desk); }
-  else { record.status = 'Approved'; record.step = 4; addHistory(record,'Final approval recorded','The approval journey is complete. This record is ready to archive.',desk); }
-  record.taskStarted = false;
-  save(); render(); openDocument(record.id,'history');
-  toast(record.status === 'Approved' ? 'Sample approval complete. The record is ready to archive.' : `Approved and forwarded to ${route[record.step]}.`);
+  if (!canActOnRecord(record) || !(record.status === 'Pending' && record.taskStarted || record.status === 'Treated')) return;
+  const purpose = record.status === 'Treated' || record.step === treatmentStep ? 'For review / approval' : 'For treatment';
+  const suggestion = suggestDepartment(record.title,record.summary);
+  showModal('Minute and route the task',escapeHTML(deskLabel(record)),`<form id="handoff-form">
+    ${record.step === 1 ? `<div class="field"><label for="responsible-department">Responsible department / PS decision</label><select id="responsible-department" name="department">${departments.map(department => `<option value="${escapeHTML(department)}" ${department === record.department ? 'selected' : ''}>${escapeHTML(departmentLabel(department))}</option>`).join('')}</select><small>${escapeHTML(suggestion.department ? `Subject suggestion: ${departmentLabel(suggestion.department)}. ${suggestion.reason}` : 'No unambiguous subject match. The PS must confirm the department manually.')}</small></div>` : ''}
+    <div class="field"><label for="handoff-purpose">Routing purpose</label><select id="handoff-purpose" name="purpose">${options(record.status === 'Treated' ? ['For review / approval'] : routingPurposes,purpose)}</select><small>Treatment goes to a subordinate in this department. Review goes to a senior officer; a Director may escalate to the PS. Assignment and review requests do not grant approval.</small></div>
+    <div class="field"><label for="handoff-recipient">Route to / receiving officer</label><select id="handoff-recipient" name="recipient" required>${recipientOptions(record,purpose)}</select><small>The organogram defines eligible authority, not a compulsory visit to every rank.</small></div>
+    <div class="field"><label for="handoff-note">Minute / action required</label><textarea id="handoff-note" name="note" required minlength="5" maxlength="1200" placeholder="State the instruction and what the receiving officer must do..."></textarea></div><label class="check-label"><input type="checkbox" name="confirmed" required/><span>This is an assignment or request for review, not final approval.</span></label></form>`,`${button('Back','document','btn',`data-id="${escapeHTML(record.id)}"`)}${button('Minute & Route','submit-handoff','btn btn-primary','type="submit" form="handoff-form"')}`);
+}
+function treatmentDialog() {
+  const record = getRecord(state.docID);
+  if (!canActOnRecord(record) || record.status !== 'Pending' || !record.taskStarted || record.step < 2 || record.step >= archiveStep) return;
+  showModal('Record treatment outcome',escapeHTML(deskLabel(record)),`<form id="treatment-form"><div class="field"><label for="treatment-note">Work done / outcome and outstanding decisions</label><textarea id="treatment-note" name="note" required minlength="5" maxlength="1200"></textarea></div><label class="check-label"><input name="confirmed" type="checkbox" required/><span>This records work completed, not final approval. I will route the report for review when appropriate.</span></label></form>`,`${button('Back','document','btn',`data-id="${escapeHTML(record.id)}"`)}${button('Save Treatment','submit-treatment','btn btn-primary','type="submit" form="treatment-form"')}`);
 }
 function correctionDialog() {
   const record = getRecord(state.docID);
-  if (!record || (!record.taskStarted && !['Approved','Archived'].includes(record.status))) return;
-  showModal('Return Process for Action',escapeHTML(record.title),`<form id="correction-form"><div class="field"><label for="return-desk">Return to</label><select id="return-desk" name="desk" required>${route.slice(0,4).map((desk,index) => `<option value="${index}" ${index === 1 ? 'selected' : ''}>${escapeHTML(desk)}</option>`).join('')}</select></div><div class="field"><label for="correction-note">Reason and action required</label><textarea id="correction-note" name="note" required minlength="5" maxlength="1000" placeholder="Explain the clarification, additional work or follow-up needed..."></textarea><small>The sending desk, receiving desk and reason are recorded in the audit log.</small></div><div class="notice">${icon('return')}<span>Returning is not rejecting. An approved or archived process can be reopened, while its previous approvals and signatures remain in the trail.</span></div></form>`,`${button('Back to document','document','btn',`data-id="${escapeHTML(record.id)}"`)}${button('Return Process','submit-return','btn btn-primary','type="submit" form="correction-form"')}`);
+  const sender = record && previousSender(record);
+  if (!canActOnRecord(record) || record.status !== 'Pending' || !record.taskStarted || !sender) return;
+  showModal('Return Process for Action',escapeHTML(record.title),`<form id="correction-form"><p>Return to <strong>${escapeHTML(sender.name)} / ${escapeHTML(sender.rank)}</strong>. The response must come back to this requesting officer.</p><div class="field"><label for="correction-note">Reason and action required</label><textarea id="correction-note" name="note" required minlength="5" maxlength="1000" placeholder="Explain the clarification needed..."></textarea></div><div class="notice">${icon('return')}<span>Corrections go to the actual recorded sender, not an assumed preceding rank. Closed records are not reopened.</span></div></form>`,`${button('Back to document','document','btn',`data-id="${escapeHTML(record.id)}"`)}${button('Return Process','submit-return','btn btn-primary','type="submit" form="correction-form"')}`);
 }
 function resubmitDialog() {
   const record = getRecord(state.docID);
-  if (!record || record.status !== 'Correction' || !record.taskStarted) return;
-  showModal('Continue the Process',escapeHTML(record.title),`<form id="resubmit-form"><div class="field"><label for="resubmit-desk">Send to</label><select id="resubmit-desk" name="desk">${route.slice(0,4).map((desk,index) => `<option value="${index}" ${index === (record.resumeStep ?? 2) ? 'selected' : ''}>${escapeHTML(desk)}</option>`).join('')}</select></div><div class="field"><label for="resubmit-note">Action taken / response</label><textarea id="resubmit-note" name="note" required minlength="5" maxlength="1000" placeholder="Describe the work completed or clarification provided..."></textarea><small>Resubmitting creates version ${record.version+1}.0. Earlier approvals and signature history remain recorded.</small></div><div class="notice">${icon('file')}<span>This updates fictional metadata only. The receiving desk will see a new task in Inbox.</span></div></form>`,`${button('Back to document','document','btn',`data-id="${escapeHTML(record.id)}"`)}${button('Resubmit Process','submit-resubmit','btn btn-primary','type="submit" form="resubmit-form"')}`);
+  if (!canActOnRecord(record) || record.status !== 'Correction' || !record.taskStarted || !Number.isInteger(record.resumeStep) || record.resumeStep >= archiveStep) return;
+  showModal('Continue the Process',escapeHTML(record.title),`<form id="resubmit-form"><p>Respond to <strong>${escapeHTML(deskLabel(record,record.resumeStep))}</strong>. The receiving desk is fixed by the correction request.</p><div class="field"><label for="resubmit-note">Action taken / response</label><textarea id="resubmit-note" name="note" required minlength="5" maxlength="1000" placeholder="Describe the work completed or clarification provided..."></textarea><small>Resubmitting creates version ${record.version+1}.0. Historical signatures and minutes remain recorded.</small></div></form>`,`${button('Back to document','document','btn',`data-id="${escapeHTML(record.id)}"`)}${button('Resubmit Process','submit-resubmit','btn btn-primary','type="submit" form="resubmit-form"')}`);
+}
+function suggestDepartment(title,summary='') {
+  const text = `${title} ${summary}`.toLowerCase();
+  const rules = [{'department':'Human Resources',words:['human resources','hrm','personnel','staff training','annual leave','onboarding','reassignment','handover']},{department:'Finance & Accounts',words:['finance','accounts','procurement','budget','expenditure','reconciliation','payment']},{department:'Policy & Planning',words:['prs','policy','planning','workplan','statistics','research']},{department:'General Administration',words:['administration','coordination','liaison','office services','records transition']}];
+  const ranked = rules.map(rule => ({...rule,matches:rule.words.filter(word => new RegExp(`\\b${word}\\b`,'i').test(text))})).filter(rule => rule.matches.length).sort((a,b) => b.matches.length-a.matches.length);
+  if (!ranked.length || ranked[0].matches.length === ranked[1]?.matches.length) return {department:null,reason:'Ambiguous or unmatched subject; human assignment required.'};
+  return {department:ranked[0].department,reason:`Matched subject terms: ${ranked[0].matches.join(', ')}. This is a keyword suggestion, not an automatic decision.`};
 }
 const intakeScenarios = {
   liaison:{label:'01 / ROUTINE CORRESPONDENCE',symbol:'file',headline:'The letter that needs the right desk.',description:'A request for records liaison nominations. Review the deadline and a proposed administrative route.',flags:['Deadline in the letter','Desk suggestion'],file:'Records_liaison_nomination.pdf',title:'Nomination of departmental records liaison officers',department:'General Administration',type:'Letter',level:'Internal',due:'2026-11-12',sender:'Director of Administration',summary:'Each department is requested to nominate a records liaison officer for the digital registry pilot. Nominations should be submitted by 12 November 2026.',desk:1,source:'Each department is requested to nominate a records liaison officer for the digital registry pilot. Kindly forward your nomination to the Administration Unit by 12 November 2026.',evidence:[['Department','"Administration Unit" identifies the originating business area.'],['Deadline','"By 12 November 2026" is an explicit submission deadline. Confirm that it is the appropriate review deadline.'],['First desk','A reviewing officer can verify the nomination before director approval. This is a sample routing rationale, not an organisational rule.']]},
@@ -364,20 +470,28 @@ const intakeScenarios = {
   clarification:{label:'03 / DO NOT GUESS',symbol:'help',headline:'The memo with a missing deadline.',description:'An instruction marked "as soon as possible". The prototype asks the officer to set a date rather than inventing one.',flags:['No explicit date','Human confirmation'],file:'Records_handover_memo.pdf',title:'Departmental records handover arrangements',department:'Human Resources',type:'Memo',level:'Internal',due:'',sender:'Human Resources Unit',summary:'Departmental officers are requested to confirm records handover arrangements before staff reassignment. The memo states "as soon as possible" but does not specify a calendar date.',desk:1,source:'From the Human Resources Unit: please confirm your departmental records handover arrangements before staff reassignment. Responses are required as soon as possible.',evidence:[['Department','"Human Resources Unit" suggests the Human Resources cabinet.'],['Deadline','"As soon as possible" is not a calendar date. No deadline is filled automatically; an officer must decide.'],['First desk','A reviewing officer can check that the handover arrangements are complete before forwarding.']]}
 };
 function startCapture(file=null,scenario='liaison') {
+  if (currentOfficer.rank !== 'PS Registry') return toast('Only PS Registry registers incoming mail. Switch prototype desks first.',true);
   state.docID = null;
   state.intake = file ? {step:1,sample:false,file:file.name,size:`${(file.size/1024).toFixed(1)} KB`,title:file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' '),department:'General Administration',type:'Letter',level:'Internal',due:'',sender:'Demo submitting officer',summary:'Enter a fictional summary. This local file is not read, uploaded or processed.',desk:1} : {...intakeScenarios[scenario],step:1,sample:true,scenario,size:'Fictional sample / not an uploaded file'};
-  state.intake.department = currentOfficer.department;
-  state.intake.unit = departmentUnits[currentOfficer.department][0];
+  const suggestion = suggestDepartment(state.intake.title,state.intake.summary);
+  if (suggestion.department) state.intake.department = suggestion.department;
+  state.intake.desk = 0;
+  state.intake.sourceChannel = 'Soft copy';
+  state.intake.priority = 'Normal';
+  state.intake.createdBy = currentOfficer.id;
+  if (state.intake.sample) state.intake.evidence = state.intake.evidence.map(([field,reason]) => [field,field === 'First desk' ? 'All incoming mail starts at PS Registry and is presented to the PS. An addressed departmental Director is a proposed recipient, not permission to bypass the PS.' : reason]);
+  state.intake.unit = departmentUnits[state.intake.department][0];
   captureModal();
 }
 function saveProcessDraft() {
   const intake = state.intake;
   if (!intake) return;
   const details = $('#intake-details-form');
-  if (details) { const values = new FormData(details); for (const key of ['title','department','unit','type','level','due','sender','summary']) intake[key] = String(values.get(key) ?? intake[key] ?? '').trim(); }
-  if ($('#intake-desk')) intake.desk = Number($('#intake-desk').value);
-  intake.department = currentOfficer.department;
-  if (!departmentUnits[currentOfficer.department].includes(intake.unit)) intake.unit = departmentUnits[currentOfficer.department][0];
+  if (details) { const values = new FormData(details); for (const key of ['title','department','unit','type','level','due','sender','summary','sourceChannel','physicalReference','priority']) intake[key] = String(values.get(key) ?? intake[key] ?? '').trim(); }
+  intake.desk = 0;
+  intake.priority = processPriority(intake);
+  if (!departments.includes(intake.department)) intake.department = departments[0];
+  if (!departmentUnits[intake.department].includes(intake.unit)) intake.unit = departmentUnits[intake.department][0];
   if (!intake.id) intake.id = `DRAFT-${crypto.randomUUID()}`;
   if (!Array.isArray(intake.history)) intake.history = [{action:'Process draft created',by:currentOfficer.name,time:new Date().toISOString(),note:`Prepared within ${currentOfficer.department}. Not submitted.`}];
   if (intake.loggedStep !== intake.step) {intake.history.push({action:`Draft step ${intake.step}`,by:currentOfficer.name,time:new Date().toISOString(),note:['','Source selected','Details being prepared','Ready to route and submit'][intake.step]}); intake.loggedStep = intake.step;}
@@ -403,29 +517,33 @@ function captureModal() {
     body = `<div class="notice" style="margin-bottom:21px">${icon('spark')}<span>${intake.sample ? '<strong>Sample smart intake suggestions.</strong> Please check the extracted details before registering.' : '<strong>Manual metadata preview.</strong> Add fictional details; the file itself has not been inspected.'}</span></div><form id="intake-details-form"><div class="field"><label for="intake-title">Document title</label><input id="intake-title" name="title" required maxlength="160" value="${escapeHTML(intake.title)}"/></div><div class="field-row"><div class="field"><label for="intake-department">Department cabinet</label><select id="intake-department" name="department">${options(departments,intake.department)}</select></div><div class="field"><label for="intake-type">Document type</label><select id="intake-type" name="type">${options(['Letter','Memo','Circular','Request','Report','Minutes'],intake.type)}</select></div></div><div class="field-row"><div class="field"><label for="intake-level">Confidentiality</label><select id="intake-level" name="level">${options(['Internal','Confidential'],intake.level)}</select></div><div class="field"><label for="intake-due">Review deadline</label><input id="intake-due" type="date" name="due" required min="${TODAY}" max="2027-12-31" value="${escapeHTML(intake.due)}"/></div></div><div class="field"><label for="intake-sender">From / originating office</label><input id="intake-sender" name="sender" required maxlength="100" value="${escapeHTML(intake.sender)}"/></div><div class="field"><label for="intake-summary">Document summary</label><textarea id="intake-summary" name="summary" required maxlength="1200">${escapeHTML(intake.summary)}</textarea></div></form>`;
     footer = `${button('Back','intake-back','btn')}${button(`Confirm & continue ${icon('arrow')}`,'submit-intake-details','btn btn-primary','type="submit" form="intake-details-form"')}`;
   } else {
-    body = `<div class="review-summary"><p class="eyebrow">READY TO REGISTER</p><h3>${escapeHTML(intake.title)}</h3><p>${escapeHTML(intake.summary)}</p><span class="badge draft">${escapeHTML(intake.department)}</span> <span class="badge draft">${escapeHTML(intake.level)}</span></div><form id="intake-route-form"><div class="field"><label for="intake-desk">First review desk / you can override the suggestion</label><select id="intake-desk" name="desk">${route.slice(1,4).map((desk,index) => `<option value="${index+1}" ${intake.desk === index+1 ? 'selected' : ''}>${desk}${intake.sample && intakeScenarios[intake.scenario].desk === index+1 ? ' (sample suggestion)' : ''}</option>`).join('')}</select><small>The standard route continues from the desk you select.</small></div><div class="workflow-small">${route.map((desk,index) => `${index ? icon('arrow') : ''}<span>${desk}</span>`).join('')}</div><label class="check-label"><input name="confirmed" type="checkbox" required/><span>I have checked the metadata and understand this creates a fictional demo record, not a live submission.</span></label></form><div class="notice">${icon('shield')}<span>A file reference and activity trail are created automatically. Only fictional metadata is saved in this browser.</span></div>`;
+    body = `<div class="review-summary"><p class="eyebrow">READY TO REGISTER / PS REGISTRY</p><h3>${escapeHTML(intake.title)}</h3><p>${escapeHTML(intake.summary)}</p><span class="badge draft">${escapeHTML(departmentLabel(intake.department))} / proposed</span> <span class="badge draft">${escapeHTML(intake.sourceChannel)}</span> <span class="badge draft">${escapeHTML(intake.level)}</span></div><form id="intake-route-form"><p>Mandatory entry: <strong>PS Registry &rarr; Permanent Secretary</strong>. The PS confirms the responsible departmental Director from the mail subject.</p><div class="workflow-small">${route.slice(0,archiveStep).map((desk,index) => `${index ? icon('arrow') : ''}<span>${desk}${index >= 2 ? ` / GL${String(staffRanks[index-2].grade).padStart(2,'0')}` : ''}</span>`).join('')}</div>${intake.sourceChannel === 'Scanned hard copy' ? '<label class="check-label"><input name="scanConfirmed" type="checkbox" required/><span>Registry has checked the scan for legibility and recorded the paper reference. This is a fictional scan preview.</span></label>' : ''}<label class="check-label"><input name="confirmed" type="checkbox" required/><span>I have checked the metadata and understand this creates a fictional demo record, not a live submission.</span></label></form><div class="notice">${icon('shield')}<span>Receipt and assignment are logged. Downward treatment does not grant final approval or automatically archive the mail.</span></div>`;
     footer = `${button('Back','intake-back','btn')}${button(`${icon('check')} Register & route`,'submit-register','btn btn-primary','type="submit" form="intake-route-form"')}`;
   }
   if (intake.step === 1 && intake.sample) body = `<div class="scenario-switch">${Object.entries(intakeScenarios).map(([key,scenario]) => button(scenario.label.split(' / ')[1],'capture-scenario',`scenario-choice ${key === intake.scenario ? 'active' : ''}`,`data-scenario="${key}" aria-pressed="${key === intake.scenario}"`)).join('')}</div>`+body;
   if (intake.step === 2) body = `<div class="intake-evidence-layout">${intakeEvidence(intake)}<div class="intake-confirmation"><p class="eyebrow">CHECK, EDIT AND CONFIRM</p>${body}</div></div>`;
-  if (intake.step === 3 && intake.sample) body = `<div class="routing-reason">${icon('spark')}<div><strong>Why the original desk suggestion?</strong><p>${escapeHTML(intake.evidence.at(-1)[1])}</p><span>Sample rationale / not a verified office policy. Your selection below takes precedence.</span></div></div>`+body;
+  if (intake.step === 3) {const suggestion = suggestDepartment(intake.title,intake.summary); body = `<div class="routing-reason">${icon('spark')}<div><strong>Subject-based department suggestion</strong><p>${escapeHTML(suggestion.reason)}</p><span>Registry proposes a cabinet; the Permanent Secretary confirms the responsible Director. No automatic routing decision.</span></div></div>`+body;}
   if (intake.step === 3) {
+    body = `<p class="intake-priority-summary">${priorityBadge(intake)} / Priority is retained at every desk.</p>` + body;
     const matching = visibleRecords().find(record => record.title.toLowerCase() === intake.title.toLowerCase());
     if (matching) body += `<div class="duplicate-warning"><strong>Matching title: ${escapeHTML(matching.id)}</strong><p>Choose the existing record, or explicitly confirm that this is a separate submission.</p>${button('Use existing record instead','use-matching-record','text-link',`data-id="${escapeHTML(matching.id)}"`)}<label class="check-label"><input type="checkbox" name="duplicateConfirmed" form="intake-route-form" required/><span>I reviewed the title match and intend to register a separate fictional submission.</span></label></div>`;
   }
   footer = button('Save & Close','save-process-draft','btn') + footer.replace(button('Cancel','close-modal','btn'),'');
   showModal('Prepare Office Process',`Draft process &middot; Step ${intake.step} of 3`,stepper+body,footer,intake.step === 2);
+  if (intake.step === 3) $('.workflow-small').insertAdjacentHTML('beforebegin','<p class="subtle">Authority reference only. A document does not have to visit every rank.</p>');
   const departmentField = $('#intake-department');
   if (departmentField) {
-    departmentField.innerHTML = options([currentOfficer.department],currentOfficer.department);
-    departmentField.closest('.field-row').insertAdjacentHTML('afterend',`<div class="field"><label for="intake-unit">Sub-department</label><select id="intake-unit" name="unit">${options(departmentUnits[currentOfficer.department],intake.unit)}</select></div>`);
+    departmentField.closest('.field-row').insertAdjacentHTML('beforebegin',`<div class="field"><label for="intake-priority">Process priority</label><select id="intake-priority" name="priority">${options(priorities,processPriority(intake))}</select><small>Urgent processes appear first at every assigned desk. Priority does not skip the PS or any rank, and does not imply approval.</small></div>`);
+    departmentField.innerHTML = departments.map(department => `<option value="${escapeHTML(department)}" ${department === intake.department ? 'selected' : ''}>${escapeHTML(departmentLabel(department))}</option>`).join('');
+    departmentField.labels[0].textContent = 'Proposed responsible department / PS confirms';
+    departmentField.closest('.field-row').insertAdjacentHTML('afterend',`<div class="field"><label for="intake-unit">Proposed sub-department</label><select id="intake-unit" name="unit">${options(departmentUnits[intake.department],intake.unit)}</select></div><div class="field-row"><div class="field"><label for="intake-channel">Receipt channel</label><select id="intake-channel" name="sourceChannel">${options(['Soft copy','Scanned hard copy'],intake.sourceChannel)}</select><small>Soft copy: email or electronic file. Hard copy: Registry scans the paper before EDMS registration.</small></div><div class="field"><label for="intake-paper-reference">Paper / physical-file reference</label><input id="intake-paper-reference" name="physicalReference" maxlength="100" value="${escapeHTML(intake.physicalReference || '')}" ${intake.sourceChannel === 'Scanned hard copy' ? 'required' : ''}/></div></div>`);
   }
   saveProcessDraft();
 }
 function exportRecords() {
   const records = state.page === 'repository' ? filteredRecords() : visibleRecords();
   const csvCell = value => `"${String(value ?? '').replace(/^[=+@-]/,"'$&").replace(/"/g,'""')}"`;
-  const rows = [['DEMONSTRATION DATA ONLY - Registry design prototype'],['Reference','Title','Department','Type','Status','Current desk','Deadline','Confidentiality'],...records.map(record => [record.id,record.title,record.department,record.type,isLate(record) ? 'Pending - overdue' : record.status,route[record.step],record.due,record.level])];
+  const rows = [['DEMONSTRATION DATA ONLY - Registry design prototype'],['Reference','Title','Department','Type','Status','Priority','Current desk','Assigned officer','Grade','Deadline','Confidentiality','Receipt channel'],...records.map(record => [record.id,record.title,departmentLabel(record.department),record.type,isLate(record) ? 'Pending - overdue' : record.status,processPriority(record),route[record.step],routeOffice(record)?.name,routeOffice(record)?.grade,record.due,record.level,record.sourceChannel])];
   const blob = new Blob(['\uFEFF'+rows.map(row => row.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a'); link.href = url; link.download = 'Registry-demo-snapshot.csv'; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url),1000);
@@ -440,7 +558,7 @@ function helpModal() {
   ].map(([name,title,text,action]) => `<button class="help-card" data-action="${action}">${icon(name)}<div><strong>${title}</strong><small>${text}</small></div>${icon('arrow')}</button>`).join('')}</div><div class="notice" style="margin-top:20px">${icon('help')}<span>Press <strong>/</strong> to search documents. Escape closes a dialog. Reset the preview under Administration to replay it.</span></div>`,button('Start exploring','close-modal','btn btn-primary'));
 }
 function profileModal() {
-  showModal('One registry. Different perspectives.','Role previews are explanatory, not authenticated accounts.',`<div class="help-grid">${[['Registry officer','Captures records, verifies metadata and starts routing.'],['Director','Reviews documents, adds minutes and forwards decisions.'],['Leadership','Sees departmental workloads and files that need attention.'],['Administrator','Manages users and illustrates security policies.']].map(([role,text]) => `<button class="help-card" data-action="preview-role" data-role="${role}">${icon(role === 'Leadership' ? 'chart' : role === 'Administrator' ? 'settings' : 'users')}<div><strong>${role}</strong><small>${text}</small></div>${state.previewRole === role ? icon('check') : icon('arrow')}</button>`).join('')}</div><p class="screen-reader-note">Switching perspectives opens a relevant screen. All demo records remain visible; production role enforcement is outside this prototype.</p>`);
+  officerPickerModal();
 }
 function notificationModal() {
   const items = overdue();
@@ -465,7 +583,7 @@ document.addEventListener('click',event => {
     case 'start-process': startCapture(null,trigger.dataset.scenario); break;
     case 'continue-process': {const draft = visibleDrafts().find(item => item.id === trigger.dataset.id); if (!draft) return toast('This draft is not available to your department.',true); state.intake = structuredClone(draft); state.docID = null; captureModal(); break;}
     case 'save-process-draft': closeModal(false); navigate('draft'); toast('Process saved as a draft. Continue it when ready.'); break;
-    case 'start-task': {const record = getRecord(trigger.dataset.id); if (!record || !['Pending','Correction'].includes(record.status)) return toast('This task is not available.',true); if (!record.taskStarted) {record.taskStarted = true; addHistory(record,'Task started',`Work started at the ${route[record.step]} desk.`,currentOfficer.name); save();} if ($('.modal')) closeModal(false); state.page = 'open-tasks'; state.taskQuery = ''; history.replaceState(null,'','#open-tasks'); closeMenu(); render(); openDocument(record.id); break;}
+    case 'start-task': {const record = getRecord(trigger.dataset.id); if (!canActOnRecord(record) || !['Pending','Correction'].includes(record.status)) return toast('Only the assigned desk can start this task.',true); if (!record.taskStarted) {record.taskStarted = true; addHistory(record,'Task started',`Work started at ${deskLabel(record)}.`,currentOfficer.name); save();} if ($('.modal')) closeModal(false); state.page = 'open-tasks'; state.taskQuery = ''; history.replaceState(null,'','#open-tasks'); closeMenu(); render(); openDocument(record.id); break;}
     case 'menu': $('#sidebar').classList.add('open'); $('#mobile-scrim').classList.add('open'); trigger.setAttribute('aria-expanded','true'); break;
     case 'close-menu': closeMenu(); break;
     case 'capture': startCapture(); break;
@@ -488,9 +606,10 @@ document.addEventListener('click',event => {
     case 'approval-tab': state.approvalTab = trigger.dataset.tab; render(); break;
     case 'doc-tab': openDocument(state.docID,trigger.dataset.tab); break;
     case 'approve': approveDocument(); break;
+    case 'record-treatment': treatmentDialog(); break;
     case 'return': correctionDialog(); break;
     case 'resubmit': resubmitDialog(); break;
-    case 'archive-document': {const record = getRecord(state.docID); if (record?.status !== 'Approved') break; record.status = 'Archived'; addHistory(record,'Archived with approval history','Filed in the department cabinet. Retention and disposal are not implemented.','Registry'); save(); render(); openDocument(record.id,'history'); toast('Sample record archived. Its history remains available.'); break;}
+    case 'archive-document': {const record = getRecord(state.docID); if (!canActOnRecord(record) || record.status !== 'Approved' || currentOfficer.rank !== 'PS Registry') break; record.status = 'Archived'; record.step = archiveStep; addHistory(record,'Archived with approval history','Filed in the department cabinet. Retention and disposal are not implemented.'); save(); render(); openDocument(record.id,'history'); toast('Sample record archived. Its history remains available.'); break;}
     case 'intake-next': saveProcessDraft(); state.intake.step++; captureModal(); break;
     case 'intake-back': {if ($('#intake-details-form')) {const values = new FormData($('#intake-details-form')); for (const key of ['title','department','type','level','due','sender','summary']) state.intake[key] = values.get(key);} if ($('#intake-desk')) state.intake.desk = Number($('#intake-desk').value); state.intake.step--; captureModal(); break;}
     case 'choose-file': $('#local-file-input')?.click(); break;
@@ -500,42 +619,111 @@ document.addEventListener('click',event => {
     case 'setting': data.settings[trigger.dataset.setting] = !data.settings[trigger.dataset.setting]; save(); render(); toast('Demo preference updated. No production policy changed.'); break;
     case 'help': helpModal(); break;
     case 'profile': profileModal(); break;
+    case 'download-minute-attachment': {const record = getRecord(trigger.dataset.id); const attachment = record?.history.flatMap(event => event.attachments || []).find(item => item.id === trigger.dataset.attachment); if (!attachment || !/^data:[^,]*;base64,[A-Za-z0-9+/=]*$/.test(attachment.dataURL)) return toast('This supporting document is not available.',true); const link = document.createElement('a'); link.href = attachment.dataURL; link.download = attachment.name.replace(/[\\/:*?"<>|]/g,'_'); document.body.append(link); link.click(); link.remove(); break;}
+    case 'select-officer': {const officer = data.users.find(user => user.id === trigger.dataset.id); if (!officer) return; closeModal(false); Object.assign(currentOfficer,officer); state.query = ''; state.taskQuery = ''; state.department = 'All departments'; state.status = 'All statuses'; state.answer = null; state.journeyID = null; state.repositoryDepartment = null; state.repositoryUnit = null; state.repositoryRootOpen = false; navigate('inbox'); toast(`Prototype desk: ${officer.role} / ${departmentLabel(officer.department)}. No real account was authenticated.`); break;}
     case 'notifications': notificationModal(); break;
     case 'preview-role': state.previewRole = trigger.dataset.role; closeModal(false); navigate({'Registry officer':'dashboard',Director:'approvals',Leadership:'leadership',Administrator:'admin'}[state.previewRole]); toast(`${state.previewRole} perspective. All demo records remain visible.`); break;
-    case 'add-user': showModal('A new person in the workspace.','Create a fictional user for this preview.',`<form id="add-user-form"><div class="field"><label for="user-name">Fictional full name</label><input id="user-name" name="name" required minlength="3" maxlength="70" placeholder="e.g. Zainab Mohammed"/></div><div class="field"><label for="user-role">Role</label><select id="user-role" name="role">${options(['Registry officer','Reviewing officer','Director','Administrator'],'Registry officer')}</select></div><div class="field"><label for="user-department">Department</label><select id="user-department" name="department">${options(departments,departments[0])}</select></div></form><div class="notice">${icon('users')}<span>No account, password or invitation is created. This adds an entry to the fictional user list only.</span></div>`,`${button('Cancel','close-modal','btn')}${button('Add demo user','submit-user','btn btn-primary','type="submit" form="add-user-form"')}`); break;
+    case 'add-user': showModal('Departmental officer directory','Create a fictional staff entry with a rank-derived grade.',`<form id="add-user-form"><div class="field"><label for="user-name">Fictional full name</label><input id="user-name" name="name" required minlength="3" maxlength="70"/></div><div class="field"><label for="user-role">Rank / grade</label><select id="user-role" name="role">${staffRanks.map(rank => `<option value="${rank.title}">${rank.title} / GL${String(rank.grade).padStart(2,'0')}</option>`).join('')}</select></div><div class="field"><label for="user-department">Department</label><select id="user-department" name="department">${options(departments,departments[0])}</select></div></form><div class="notice">${icon('users')}<span>Directory entry only. This does not replace the configured desk incumbent or create a real account.</span></div>`,`${button('Cancel','close-modal','btn')}${button('Add demo user','submit-user','btn btn-primary','type="submit" form="add-user-form"')}`); break;
     case 'reset': showModal('Start with a clean desk.','Reset the fictional demonstration workspace.',`<p class="subtle" style="font-size:12px;line-height:1.9">This removes your captured demo records, comments, approval changes and added users. The original 10 fictional documents and default settings will be restored.</p>`,`${button('Keep my demo changes','close-modal','btn')}${button('Reset demonstration','confirm-reset','btn btn-danger')}`); break;
     case 'confirm-reset': data = initialData(); state.query = ''; state.department = 'All departments'; state.status = 'All statuses'; state.approvalTab = 'Pending'; state.answer = null; state.intake = null; state.journeyID = null; state.journeyQuery = ''; state.followUpID = null; clearTimeout(archiveTimer); save(); closeModal(false); render(); toast('The original demonstration workspace has been restored.'); break;
   }
 });
-document.addEventListener('submit',event => {
+document.addEventListener('submit',async event => {
   event.preventDefault();
   const form = event.target;
   if (!form.reportValidity()) return;
+  let attachments = [];
+  if (form.querySelector('.minute-attachment-fields')) {
+    if (form.dataset.processing || !canActOnRecord(getRecord(state.docID))) return;
+    const officerID = currentOfficer.id; const documentID = state.docID;
+    form.dataset.processing = 'true';
+    try {attachments = await readMinuteAttachments(form);}
+    catch (error) {toast(error.message,true); return;}
+    finally {delete form.dataset.processing;}
+    if (officerID !== currentOfficer.id || documentID !== state.docID || !form.isConnected) return toast('The active task changed. The minute and files were not saved.',true);
+  }
   const values = new FormData(form);
   if (form.id === 'global-search-form') { state.query = $('#global-search').value.trim(); state.department = 'All departments'; state.status = 'All statuses'; navigate('repository'); }
   if (form.id === 'archive-form') { const question = $('#archive-question').value.trim(); if (question) askArchive(question); }
-  if (form.id === 'comment-form') { const record = getRecord(state.docID); const note = values.get('comment').trim(); if (!note) return; addHistory(record,'Minute added',note,'Amina Bello'); save(); render(); openDocument(record.id,'history'); toast('Comment added to the sample activity trail.'); }
-  if (form.id === 'minute-draft-form') {const record = getRecord(state.docID); const note = values.get('note').trim(); if (!record || note.length < 10) return; addHistory(record,'Minute added',note,'Demo reviewing officer'); save(); render(); openDocument(record.id,'history'); toast('Reviewed sample minute added. Document status did not change.');}
+  if (form.id === 'comment-form') { const record = getRecord(state.docID); const note = values.get('comment').trim(); if (!canActOnRecord(record) || !['Pending','Correction'].includes(record.status) || !note) return toast('Only the assigned active desk can add a minute.',true); addHistory(record,'Minute added',note,currentOfficer.name,attachments); save(); render(); openDocument(record.id,'minutes'); toast('Minute and supporting documents saved.'); }
+  if (form.id === 'minute-draft-form') {const record = getRecord(state.docID); const note = values.get('note').trim(); if (!canActOnRecord(record) || !['Pending','Correction'].includes(record.status) || note.length < 10) return toast('Only the assigned active desk can add a minute.',true); addHistory(record,'Minute added',note,currentOfficer.name,attachments); save(); render(); openDocument(record.id,'minutes'); toast('Reviewed minute and supporting documents saved. Assignment did not change.');}
   if (form.id === 'follow-up-form') {const record = getRecord(state.followUpID); const note = values.get('note').trim(); if (!record || record.status !== 'Pending' || note.length < 10) return; addHistory(record,'Follow-up draft saved',note,'Demo leadership desk'); save(); closeModal(false); render(); toast('Reviewed draft recorded in the demo trail. No message was sent.');}
-  if (form.id === 'correction-form') {const record = getRecord(state.docID); if (!record || (!record.taskStarted && !['Approved','Archived'].includes(record.status))) return; const note = values.get('note').trim(); const desk = Number(values.get('desk')); if (note.length < 5 || !Number.isInteger(desk) || desk < 0 || desk > 3) return; const previousStatus = record.status; const fromStep = record.step === 4 ? 3 : record.step; const from = route[fromStep]; record.resumeStep = fromStep; record.status = 'Correction'; record.taskStarted = false; record.step = desk; addHistory(record,`Returned from ${from} to ${route[desk]}`,`${previousStatus === 'Approved' || previousStatus === 'Archived' ? 'Reopened after approval. ' : ''}${note} / Return for further action, not rejection.`,`${currentOfficer.name} / ${from}`); save(); render(); openDocument(record.id,'trail'); toast(`Returned to ${route[desk]} for action. Previous approvals remain in the audit log.`);}
-  if (form.id === 'resubmit-form') {const record = getRecord(state.docID); if (!record || record.status !== 'Correction' || !record.taskStarted) return; const note = values.get('note').trim(); const desk = Number(values.get('desk')); if (note.length < 5 || !Number.isInteger(desk) || desk < 0 || desk > 3) return; const from = route[record.step]; record.status = 'Pending'; record.taskStarted = false; record.step = desk; record.version++; record.due = record.due < TODAY ? '2026-11-06' : record.due; addHistory(record,`Resubmitted from ${from} to ${route[desk]} as v${record.version}.0`,note,`${currentOfficer.name} / ${from}`); save(); render(); openDocument(record.id,'trail'); toast(`Process sent to ${route[desk]}. Start the next task from Inbox.`);}
+  if (form.id === 'handoff-form') {
+    const record = getRecord(state.docID);
+    const note = String(values.get('note') || '').trim();
+    if (!canActOnRecord(record) || !(record.status === 'Pending' && record.taskStarted || record.status === 'Treated') || note.length < 5 || !values.get('confirmed')) return;
+    const fromStep = record.step;
+    const from = deskLabel(record);
+    const department = fromStep === 1 ? values.get('department') : record.department;
+    const purpose = values.get('purpose');
+    const recipient = routedRecipients(record,purpose,department).find(user => user.id === values.get('recipient'));
+    if (!recipient || record.status === 'Treated' && purpose !== 'For review / approval') return toast('Choose an officer with the appropriate authority for this routing purpose.',true);
+    if (fromStep === 1) {
+      if (!departments.includes(department)) return;
+      record.department = department;
+      if (!departmentUnits[department].includes(record.unit)) record.unit = departmentUnits[department][0];
+      record.departmentConfirmedBy = currentOfficer.name;
+    }
+    record.step = route.indexOf(recipient.rank); record.status = 'Pending'; record.assigneeID = recipient.id; record.routingPurpose = purpose;
+    addHistory(record,`Minuted from ${from} to ${deskLabel(record)}`,`${note}\n\n${purpose} / Assigned to ${recipient.name}.`,currentOfficer.name,attachments);
+    Object.assign(record.history.at(-1),{fromStep,toStep:record.step,fromOfficeID:currentOfficer.id,toOfficeID:record.assigneeID,toOfficer:recipient.name,purpose,priority:processPriority(record)});
+    record.taskStarted = false;
+    const correspondence = fx.correspondence.find(item => item.documentID === record.id);
+    if (correspondence) Object.assign(correspondence,{department:record.department,priority:processPriority(record),status:record.status === 'Treated' ? 'Awaiting final decision' : `At ${route[record.step]}`,assigneeID:record.assigneeID});
+    save(); fxSave(); render(); openDocument(record.id,'trail');
+    toast(`Assigned to ${recipient.name} / ${recipient.rank}. Final approval is unchanged.`);
+  }
+  if (form.id === 'treatment-form') {
+    const record = getRecord(state.docID); const note = String(values.get('note') || '').trim();
+    if (!canActOnRecord(record) || record.status !== 'Pending' || !record.taskStarted || record.step < 2 || record.step >= archiveStep || note.length < 5 || !values.get('confirmed')) return;
+    record.status = 'Treated'; record.taskStarted = false;
+    addHistory(record,'Treatment outcome recorded',`${note} / Awaiting review; not approved.`,currentOfficer.name,attachments);
+    const correspondence = fx.correspondence.find(item => item.documentID === record.id);
+    if (correspondence) correspondence.status = 'Awaiting review';
+    save(); fxSave(); render(); openDocument(record.id,'minutes'); toast('Treatment recorded. Route the report to an eligible senior officer for review.');
+  }
+  if (form.id === 'correction-form') {
+    const record = getRecord(state.docID); const note = String(values.get('note') || '').trim();
+    const sender = record && previousSender(record);
+    if (!canActOnRecord(record) || record.status !== 'Pending' || !record.taskStarted || !sender || note.length < 5) return;
+    const fromStep = record.step; const from = deskLabel(record);
+    record.resumeStep = fromStep; record.resumeAssigneeID = currentOfficer.id; record.status = 'Correction'; record.taskStarted = false; record.step = route.indexOf(sender.rank); record.assigneeID = sender.id;
+    addHistory(record,`Returned from ${from} to ${deskLabel(record)}`,`${note} / Return for correction, not rejection.`,currentOfficer.name,attachments);
+    Object.assign(record.history.at(-1),{fromStep,toStep:record.step,fromOfficeID:currentOfficer.id,toOfficeID:record.assigneeID});
+    save(); render(); openDocument(record.id,'trail'); toast(`Returned to ${deskLabel(record)}.`);
+  }
+  if (form.id === 'resubmit-form') {
+    const record = getRecord(state.docID); const note = String(values.get('note') || '').trim();
+    if (!canActOnRecord(record) || record.status !== 'Correction' || !record.taskStarted || !Number.isInteger(record.resumeStep) || record.resumeStep < 0 || record.resumeStep >= archiveStep || note.length < 5) return;
+    const fromStep = record.step; const from = deskLabel(record);
+    const receiver = eligibleRecipients(record,record.resumeStep).find(user => user.id === (record.resumeAssigneeID || officeID(record.department,record.resumeStep)));
+    if (!receiver) return toast('The original requesting officer is unavailable. Assignment needs administrator review.',true);
+    record.status = 'Pending'; record.taskStarted = false; record.step = record.resumeStep; delete record.resumeStep; record.assigneeID = receiver.id; delete record.resumeAssigneeID; record.version++;
+    addHistory(record,`Resubmitted from ${from} to ${deskLabel(record)} as v${record.version}.0`,note,currentOfficer.name,attachments);
+    Object.assign(record.history.at(-1),{fromStep,toStep:record.step,fromOfficeID:currentOfficer.id,toOfficeID:record.assigneeID});
+    save(); render(); openDocument(record.id,'trail'); toast(`Response sent to ${deskLabel(record)}.`);
+  }
   if (form.id === 'intake-details-form') {
     for (const key of ['title','department','type','level','due','sender','summary']) { state.intake[key] = values.get(key).trim(); if (!state.intake[key]) { toast('Complete all document details before continuing.',true); return; } }
     saveProcessDraft(); state.intake.step = 3; captureModal();
   }
   if (form.id === 'intake-route-form') {
     const intake = state.intake;
+    if (currentOfficer.rank !== 'PS Registry' || !intake || !values.get('confirmed') || !departments.includes(intake.department)) return;
+    if (intake.sourceChannel === 'Scanned hard copy' && (!intake.physicalReference || !values.get('scanConfirmed'))) return toast('Confirm the readable scan and physical-file reference.',true);
     saveProcessDraft();
     const serial = Math.max(...data.records.map(record => Number(record.id.split('/').pop())).filter(Number.isFinite),148)+1;
-    const record = {id:`REG/2026/${String(serial).padStart(4,'0')}`,title:intake.title,department:intake.department,type:intake.type,level:intake.level,due:intake.due,sender:intake.sender,summary:intake.summary,file:intake.file,step:Number(values.get('desk')),owner:'Amina Bello',date:TODAY,status:'Pending',version:1,history:[]};
+    const record = {id:`REG/2026/${String(serial).padStart(4,'0')}`,title:intake.title,department:intake.department,type:intake.type,level:intake.level,due:intake.due,sender:intake.sender,summary:intake.summary,file:intake.file,step:0,assigneeID:'ps-registry',sourceChannel:intake.sourceChannel,physicalReference:intake.physicalReference || '',owner:currentOfficer.name,date:TODAY,status:'Pending',version:1,history:[]};
     record.unit = intake.unit;
+    record.priority = processPriority(intake);
     record.history = structuredClone(intake.history || []);
     record.taskStarted = false;
-    addHistory(record,'Captured with smart intake',intake.sample ? 'Sample suggestions checked and confirmed by the registry officer.' : 'Fictional metadata entered manually. Local file contents were not read.','Amina Bello');
-    addHistory(record,`Routed to ${route[record.step]}`,'Review deadline and confidentiality recorded.','Amina Bello');
+    addHistory(record,'Captured with smart intake',`${intake.sample ? 'Sample metadata checked by PS Registry.' : 'Fictional metadata entered manually; no file contents read.'} / ${record.sourceChannel}${record.physicalReference ? ` / Paper reference: ${record.physicalReference}` : ''}`);
+    addHistory(record,'Received at PS Registry',`${record.priority} priority. The PS must review the subject and confirm the responsible Director before departmental treatment.`);
+    fx.correspondence.unshift({id:record.id,documentID:record.id,direction:'Incoming',subject:record.title,sender:record.sender,department:record.department,priority:record.priority,sourceChannel:record.sourceChannel,assigneeID:record.assigneeID,status:'At PS Registry'}); fxSave();
     data.records.unshift(record); data.processDrafts = data.processDrafts.filter(draft => draft.id !== intake.id); save(); state.intake = null; closeModal(false); navigate('inbox'); toast(`Process submitted as ${record.id}. Start its first task from Inbox.`);
   }
-  if (form.id === 'add-user-form') { const name = values.get('name').trim(); if (name.length < 3) return; if (data.users.some(user => user.name.toLowerCase() === name.toLowerCase())) { toast('A fictional user with that name already exists.',true); return; } data.users.push({name,role:values.get('role'),department:values.get('department')}); save(); closeModal(false); render(); toast('Fictional user added. No real account has been created.'); }
+  if (form.id === 'add-user-form') { const name = values.get('name').trim(); const rank = staffRanks.find(item => item.title === values.get('role')); const department = values.get('department'); if (name.length < 3 || !rank || !departments.includes(department)) return; if (data.users.some(user => user.name.toLowerCase() === name.toLowerCase())) { toast('A fictional user with that name already exists.',true); return; } data.users.push({id:`staff-${crypto.randomUUID()}`,name,role:rank.title,rank:rank.title,grade:rank.grade,department}); save(); closeModal(false); render(); toast('Fictional directory entry added. No real account has been created.'); }
 });
 document.addEventListener('input',event => {
   if (state.intake && event.target.closest('#intake-details-form')) saveProcessDraft();
@@ -544,6 +732,10 @@ document.addEventListener('input',event => {
   if (event.target.id === 'journey-search') {state.journeyQuery = event.target.value; $('#journey-options').innerHTML = journeyOptions();}
 });
 document.addEventListener('change',event => {
+  if (event.target.name === 'attachments') {const root = event.target.closest('.minute-attachment-fields'); const files = [...event.target.files]; root.querySelector('input[name="attachmentConfirmed"]').required = files.length > 0; root.querySelector('.minute-attachment-selection').textContent = files.length ? files.map(file => `${file.name} (${(file.size/1024).toFixed(1)} KB)`).join('; ') : 'No supporting documents selected.';}
+  if (['responsible-department','handoff-purpose'].includes(event.target.id)) {const record = getRecord(state.docID); if (record) $('#handoff-recipient').innerHTML = recipientOptions(record,$('#handoff-purpose').value,$('#responsible-department')?.value || record.department);}
+  if (event.target.id === 'intake-department') {state.intake.department = event.target.value; state.intake.unit = departmentUnits[event.target.value][0]; $('#intake-unit').innerHTML = options(departmentUnits[event.target.value],state.intake.unit);}
+  if (event.target.id === 'intake-channel') $('#intake-paper-reference').required = event.target.value === 'Scanned hard copy';
   if (state.intake && event.target.closest('#intake-details-form, #intake-route-form')) saveProcessDraft();
   if (event.target.id === 'department-filter') { state.department = event.target.value; render(); }
   if (event.target.id === 'status-filter') { state.status = event.target.value; $('#repository-results').innerHTML = repositoryResults(); }

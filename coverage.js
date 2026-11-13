@@ -1,7 +1,14 @@
 'use strict';
 
 Object.assign(frameworkPages,{login:loginPage,mfa:mfaPage});
+function resetPreparedOfficerSession() {
+  Object.assign(currentOfficer,data.users.find(user=>user.id==='ps-registry'));
+  clearTimeout(archiveTimer);
+  Object.assign(state,{query:'',department:'All departments',status:'All statuses',view:'list',approvalTab:'Pending',docID:null,docTab:'preview',intake:null,answer:null,previewRole:'PS Registry',journeyID:null,journeyQuery:'',followUpID:null,taskQuery:'',repositoryDepartment:null,repositoryUnit:null,repositoryRootOpen:false});
+  activeFeature=null;authStep=0;signatureDrawing=false;signatureHasInk=false;
+}
 function loginPage() {
+  resetPreparedOfficerSession();
   return `<div class="login-wrap"><section class="login-context"><p class="eyebrow">OHCSF / OFFICER WORKSPACE</p><h1>Your desk.<br>Your decisions.<br><em>A complete trail.</em></h1><p>Sign in to your inbox, continue an open task or start a new office process.</p><div class="notice">${icon('shield')}<span>Design prototype only. Use the prepared fictional account; do not enter real credentials.</span></div></section><section class="login-card"><img src="nigeria-coat-of-arms.svg" alt="Nigeria coat of arms"/><p class="eyebrow">ELECTRONIC DOCUMENT MANAGEMENT</p><h2>Officer sign-in</h2><form id="fx-login-form"><div class="field"><label for="demo-account">Officer email</label><input id="demo-account" value="amina@example.invalid" type="email" readonly/></div><div class="field"><label for="demo-password">Password</label><input id="demo-password" value="PROTOTYPE-ONLY" type="password" readonly/><small>Prepared sample only. No password is sent or validated.</small></div>${consent('I understand this is a fictional prototype session.')}${button(`Sign in ${icon('arrow')}`,'fx-login-submit','btn btn-primary','type="submit"')}<p class="login-disclosure">No live authentication, SSO or account access is performed.</p></form></section></div>`;
 }
 function mfaPage() {
@@ -9,11 +16,11 @@ function mfaPage() {
 }
 document.addEventListener('submit',event=>{
   const form=event.target;if(!['fx-login-form','fx-login-mfa-form'].includes(form.id))return;event.preventDefault();if(!form.reportValidity())return;
-  if(form.id==='fx-login-form'){state.previewRole='Registry officer';navigate('mfa');return;}
+  if(form.id==='fx-login-form'){closeModal(false);resetPreparedOfficerSession();navigate('mfa');return;}
   if(new FormData(form).get('code')!=='123456')return toast('Enter the fixed prototype code 123456.',true);
-  fxSave('Sign-in journey completed','Prepared account and fixed code only.');navigate('inbox');toast('Prototype session opened. No real account was authenticated.');
+  resetPreparedOfficerSession();fxSave('Sign-in journey completed','Prepared PS Registry account and fixed code only.');navigate('inbox');toast('Prepared PS Registry session opened. No real account was authenticated.');
 });
-document.addEventListener('click',event=>{const trigger=event.target.closest('[data-action]');if(trigger?.dataset.action==='fx-show-code'){$('#login-demo-code').value='123456';$('#login-demo-code').focus();}if(trigger?.dataset.action==='fx-signout'){closeModal(false);navigate('login');}});
+document.addEventListener('click',event=>{const trigger=event.target.closest('[data-action]');if(trigger?.dataset.action==='fx-show-code'){$('#login-demo-code').value='123456';$('#login-demo-code').focus();}if(trigger?.dataset.action==='fx-signout'){closeModal(false);resetPreparedOfficerSession();navigate('login');}});
 
 const additionalFeatures = {
   captureops:{folderImport:'Folder import',camera:'Phone-camera capture',barcode:'Batch scanning / barcode separators',formats:'Audio, video & email intake'},
@@ -39,7 +46,7 @@ Object.assign(policyForms,{
   bulkOperations:()=>field('Sample record','record','record')+f('Operation','operation','Move to cabinet',['Move to cabinet','Rename metadata','Export list'])+f('Destination cabinet','department',departments[2],departments)+f('New title (rename only)','title','Reviewed demonstration record'),
   docTypes:()=>f('Document type','type','Staff circular')+f('Required fields','fields','Reference, originating MDA, issue date, classification')+f('Template','template','OHCSF letterhead',['OHCSF letterhead','Memo','Minutes','Request']),
   similar:()=>field('Source record','record','record')+f('Similarity basis','basis','Department / document type',['Department / document type','Prepared keyword overlap']),
-  searchScope:()=>f('MDA scope','mda','OHCSF',['OHCSF','Sample MDA workspace'])+f('Owner','owner',data.users[0].name,data.users.map(user=>user.name))+f('Confidentiality','level','Internal',['Public','Internal','Confidential','Secret'])+f('Status','status','Pending',['Pending','Approved','Archived','Correction']),
+  searchScope:()=>f('MDA scope','mda','OHCSF',['OHCSF','Sample MDA workspace'])+f('Owner','owner',currentOfficer.name,data.users.filter(user=>canAccessDepartment(user.department)).map(user=>user.name))+f('Confidentiality','level','Internal',['Public','Internal','Confidential','Secret'])+f('Status','status','Pending',['Pending','Treated','Approved','Archived','Correction']),
   fingerprint:()=>`<div class="fx-biometric"><strong>TOUCH / UNLOCK PREVIEW</strong><p>No biometric sensor or fingerprint data is accessed.</p></div>`+f('Result to preview','result','Accepted sample',['Accepted sample','Rejected sample','Use verification-code fallback']),
   stepTimes:()=>field('Record','record','record')+f('Review threshold (illustrative)','threshold','2 working days')+f('Timeline basis','basis','Recorded sample events only',['Recorded sample events only','Prepared SLA illustration']),
   meeting:()=>field('Linked record','record','record')+f('Meeting title','meeting','Registry transition working group')+field('Minute / action','note','textarea','Confirm departmental records liaison nominations.')+f('Action owner (fictional)','owner',data.users[0].name,data.users.map(user=>user.name))+field('Action deadline','deadline','date','2026-11-12'),
@@ -63,6 +70,6 @@ Object.assign(policyForms,{
   mdaSpaces:()=>f('Workspace','workspace','Sample MDA registry')+f('Registry code','code','MDA-DEMO')+f('Default classification','level','Internal',['Internal','Confidential'])+f('Separate settings','settings','Roles, templates and workflow policies'),
   lowBandwidth:()=>f('Mode','mode','Low-bandwidth preview',['Standard','Low-bandwidth preview'])+f('Media preference','media','Text-first / defer image previews',['Text-first / defer image previews','Standard previews']),
   uptime:()=>f('Prepared monitoring scenario','scenario','Service healthy',['Service healthy','Maintenance window','Recovery rehearsal'])+f('Availability claim','claim','No live uptime measurement')+f('Recovery checkpoint','checkpoint','Fictional metadata snapshot only'),
-  training:()=>f('Training journey','journey','Capture and approve',['Capture and approve','E-sign a document','Handle a physical file','Appraise and preserve'])+f('Audience','audience','Registry officers',['Registry officers','Directors','Records managers'])+f('Completion','completion','Reviewed in prototype'),
+  training:()=>f('Training journey','journey','Register, assign and treat',['Register, assign and treat','E-sign an assigned document','Handle a physical file','Appraise and preserve'])+f('Audience','audience','PS Registry',['PS Registry','Permanent Secretary','Departmental officers','Records managers'])+f('Completion','completion','Reviewed in prototype'),
   branding:()=>f('Institution','institution',ORGANISATION)+f('National identity','identity','Nigeria coat of arms / green-white-green')+f('Template footer','footer','Design prototype / fictional record / not official')
 });
