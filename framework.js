@@ -71,26 +71,20 @@ function decoratePrototype() {
     }
     const routeList = document.querySelector('.document-meta .route-list');
     if (routeList) {
-      if (routeList.previousElementSibling?.tagName === 'H3') routeList.previousElementSibling.textContent = 'Authority reference / recorded actions';
-      const visited = new Set(record.history.filter(event => Number.isInteger(event.fromStep)).map(event => event.fromStep));
-      routeList.innerHTML = route.map((desk,index) => {
-        const current = index === record.step;
-        const recorded = visited.has(index);
-        const label = current ? record.status === 'Archived' ? 'Filed with history' : record.status === 'Approved' ? 'Historical approval / ready for filing' : record.status === 'Correction' ? 'Returned for action' : record.status === 'Treated' ? 'Treatment recorded / awaiting review' : 'Current desk' : recorded ? 'Action recorded' : index === route.length-1 ? 'Existing final decision required' : index > 2 ? 'Optional authority / no recorded action' : 'No recorded action';
-        return `<li class="route-step"><span class="route-marker ${current ? 'current' : recorded ? 'done' : ''}">${!current && recorded ? icon('check') : index+1}</span><div>${escapeHTML(deskLabel(record,index))}<small>${label}</small></div></li>`;
-      }).join('');
+      if (routeList.previousElementSibling?.tagName === 'H3') routeList.previousElementSibling.textContent = 'Current assignment';
+      routeList.innerHTML = `<li class="route-step"><span class="route-marker current">${icon('users')}</span><div>${escapeHTML(deskLabel(record))}<small>${escapeHTML(routeOffice(record)?.name || 'Unassigned')} / ${escapeHTML(record.status)}</small></div></li>`;
     }
     document.querySelectorAll('.document-meta small,.document-meta dd').forEach(element => {
       if (/Approved by (?:the )?Permanent Secretary/i.test(element.textContent)) element.textContent = 'Final authority is not inferred from a desk position.';
     });
   }
   const endorsement = record && fx.config[`signature-${record.id}`];
-  if (paper && endorsement && !paper.querySelector('.fx-signed-document')) paper.insertAdjacentHTML('beforeend',`<div class="fx-signed-document"><span class="eyebrow">ELECTRONIC SIGNATURE / DEMONSTRATION ONLY</span>${endorsement.image ? `<img src="${endorsement.image}" alt="Fictional drawn signature preview"/>` : `<strong class="fx-written-signature">${escapeHTML(endorsement.signer)}</strong>`}<p>${escapeHTML(endorsement.designation)} / ${escapeHTML(endorsement.date)} / Signed version ${endorsement.version || 1}.0</p>${(endorsement.version || 1) !== record.version ? `<p><strong>Historical signature only. Current version ${record.version}.0 is not covered by this signature.</strong></p>` : ''}<small>NOT A LEGALLY BINDING SIGNATURE / NO CERTIFICATE OR IDENTITY VALIDATION</small></div>`);
+  if (paper && endorsement && !paper.querySelector('.fx-signed-document')) paper.insertAdjacentHTML('beforeend',`<div class="fx-signed-document"><span class="eyebrow">ELECTRONIC SIGNATURE / DEMONSTRATION ONLY</span>${endorsement.image ? `<img src="${endorsement.image}" alt="Fictional drawn signature preview"/>` : `<strong class="fx-written-signature">${escapeHTML(endorsement.signer)}</strong>`}<p>${escapeHTML(endorsement.designation)} / ${escapeHTML(endorsement.date)} / Signed version ${endorsement.version || 1}.0</p>${(endorsement.version || 1) !== record.version ? `<p><strong>Historical signature only. Current version ${record.version}.0 is not covered by this signature.</strong></p>` : ''}<small>NOT A LEGALLY BINDING SIGNATURE / NO CERTIFICATE OR IDENTITY VALIDATION. Original PDF/Word files remain unchanged.</small></div>`);
 }
 function signatureVersionHistory(record) {
   const latest = fx.config[`signature-${record.id}`];
   const signatures = fx.config[`signatures-${record.id}`] || (latest ? [latest] : []);
-  return signatures.length ? `<section class="panel panel-padding"><h3>Recorded E-signatures</h3>${signatures.map(signature => `<div class="role-item"><span class="avatar">v${signature.version || 1}</span><div><strong>${escapeHTML(signature.signer)}</strong><small>${escapeHTML(signature.designation)} / ${escapeHTML(signature.mode)} / ${escapeHTML(signature.date)} / Version ${signature.version || 1}.0</small></div></div>`).join('')}<p class="subtle">Earlier signatures are retained as historical endorsements, not signatures of revised versions. Demonstration only.</p></section>` : '';
+  return signatures.length ? `<section class="panel panel-padding"><h3>Recorded E-signatures</h3>${signatures.map(signature => `<div class="role-item"><span class="avatar">v${signature.version || 1}</span><div><strong>${escapeHTML(signature.signer)}</strong><small>${escapeHTML(signature.designation)} / ${escapeHTML(signature.mode)} / ${escapeHTML(signature.date)} / Version ${signature.version || 1}.0</small></div></div>`).join('')}<p class="subtle">Earlier signatures are retained as historical endorsements, not signatures of revised versions. Demonstration only. Original PDF/Word files remain unchanged.</p></section>` : '';
 }
 function fxButton(label,feature,style='btn btn-sm') {return button(label,'fx-open',style,`data-feature="${feature}"`);}
 function fxNotice(text='Design prototype only. These controls use fictional metadata; no live files, accounts, messages or government systems are affected.') {return `<div class="notice fx-notice">${icon('shield')}<span>${text}</span></div>`;}
@@ -126,7 +120,7 @@ function moduleHighlights(module) {
   if (module.page === 'records') return fxTable(['Category','Illustrative retention','Disposition'],fx.retention.map(rule => [escapeHTML(rule.category),rule.years ? `${rule.years} years` : 'Permanent',escapeHTML(rule.action)]));
   if (module.page === 'access') return `<div class="fx-two-column"><div class="panel panel-padding"><p class="eyebrow">DESIGNING TRUST</p><h2 class="fx-serif">The right officer.<br>The right level of access.</h2><p>Preview authentication, role permissions, document handling and audit evidence without entering real credentials.</p>${fxButton('Try the sign-in journey','signin','btn btn-primary')}</div><div class="panel panel-padding"><p class="eyebrow">POLICY IS NOT ENFORCEMENT</p><h2 class="fx-serif">Visible safeguards.<br>Honest boundaries.</h2><p>Policies here are editable illustrations. They do not encrypt documents, enforce real access or authenticate a civil servant.</p>${fxButton('Inspect the access matrix','permissions','btn')}</div></div>`;
   if (module.page === 'intelligence') return `<div class="intelligence-manifesto"><div><p class="eyebrow">LOCALLY HOSTED INTELLIGENCE / PROPOSED ARCHITECTURE</p><h2>Assist the officer.<br><em>Never hide the evidence.</em></h2><p>Summarisation, routing, translation, redaction and archive rescue all use fictional examples. Every important change requires human review.</p></div></div>`;
-  if (module.page === 'reports') return `<div class="stats-grid">${stat('Tracked records',visibleRecords().length,'Current department registry','file')}${stat('Overdue',overdue().length,'Fixed demo date: 5 Nov 2026','clock',true)}${stat('Completed',closed().length,'Approved or archived','check')}${stat('Demo actions',fx.log.length,'Actions recorded in this browser','chart')}</div>`;
+  if (module.page === 'reports') return `<div class="stats-grid">${stat('Tracked records',visibleRecords().length,'Current department registry','file')}${stat('Overdue',overdue().length,`As of ${dateLabel(currentDate())}`,'clock',true)}${stat('Completed',closed().length,'Approved or archived','check')}${stat('Demo actions',fx.log.length,'Actions recorded in this browser','chart')}</div>`;
   if (module.page === 'platform') return `<div class="fx-phase-strip"><span><strong>Phase 1</strong>Capture, repository, search, access, approvals + three headline experiences</span><span><strong>Phase 2</strong>Mobile, physical registry, verification, archive rescue and additional workflows</span><span><strong>Phase 3</strong>Retention, integrations and organisational scale</span></div>`;
   return '';
 }
@@ -142,21 +136,24 @@ function ministryRepositoryPage() {
   state.repositoryDepartment ??= null;
   state.repositoryUnit ??= null;
   state.repositoryRootOpen ??= false;
+  state.query ??= '';
   const ownDepartment = currentOfficer.department;
   if (state.repositoryDepartment !== null && (!Object.hasOwn(departmentUnits,state.repositoryDepartment) || !canAccessDepartment(state.repositoryDepartment)) || state.repositoryUnit !== null && (!state.repositoryDepartment || !departmentUnits[state.repositoryDepartment]?.includes(state.repositoryUnit)) || !state.repositoryRootOpen && (state.repositoryDepartment !== null || state.repositoryUnit !== null)) {
     state.repositoryDepartment = null;
     state.repositoryUnit = null;
     state.repositoryRootOpen = false;
-    state.query = '';
   }
   const department = state.repositoryDepartment;
   const unit = state.repositoryUnit;
   const units = departmentUnits[department] || [];
-  const title = unit || (department && departmentLabel(department)) || (state.repositoryRootOpen ? 'Permanent Secretary' : 'Ministry repository');
-  const description = unit ? 'Documents filed in the selected sub-department. Search by title or reference.' : department ? 'Open a sub-department to browse its documents. PS Registry and PS can browse all departments; departmental officers stay within their own department.' : state.repositoryRootOpen ? 'The highest office in the ministry. Every department folder sits directly beneath the Permanent Secretary.' : 'Permanent Secretary, departments, sub-departments, then documents. A clear filing structure for the ministry.';
+  const searching = Boolean(state.query.trim());
+  const title = searching ? 'Search results' : unit || (department && departmentLabel(department)) || (state.repositoryRootOpen ? 'Permanent Secretary' : 'Ministry repository');
+  const description = searching ? 'Matching accessible documents from every folder. Search titles, references, summaries, senders, document types and recorded minute text.' : unit ? 'Documents filed in the selected sub-department. Search across accessible folders at any time.' : department ? 'Open a sub-department to browse its documents. PS Registry and PS can browse all departments; departmental officers stay within their own department.' : state.repositoryRootOpen ? 'The highest office in the ministry. Every department folder sits directly beneath the Permanent Secretary.' : 'Permanent Secretary, departments, sub-departments, then documents. A clear filing structure for the ministry.';
   const breadcrumbs = `<nav class="ministry-repository-breadcrumbs" aria-label="Repository breadcrumb"><ol><li>${button('Repository','repo-back','',`data-level="repository" ${!state.repositoryRootOpen ? 'aria-current="page"' : ''}`)}</li>${state.repositoryRootOpen ? `<li>${button('Permanent Secretary','repo-open-root','',!department ? 'aria-current="page"' : '')}</li>` : ''}${department ? `<li>${button(escapeHTML(departmentLabel(department)),'repo-back','',`data-level="department" data-department="${escapeHTML(department)}" ${!unit ? 'aria-current="page"' : ''}`)}</li>` : ''}${unit ? `<li><span aria-current="page">${escapeHTML(unit)}</span></li>` : ''}</ol></nav>`;
   let content;
-  if (!state.repositoryRootOpen) {
+  if (searching) {
+    content = `<section aria-labelledby="ministry-repository-documents"><div class="section-heading"><h2 id="ministry-repository-documents">Matching documents</h2><span class="subtle">All accessible folders</span></div><div id="ministry-repository-results" aria-live="polite">${ministryRepositoryDocuments()}</div></section>`;
+  } else if (!state.repositoryRootOpen) {
     content = `<section aria-label="Highest ministry office"><button type="button" class="ministry-repository-root" data-action="repo-open-root"><span class="ministry-repository-folder-icon">${icon('folder')}</span><span class="ministry-repository-root-copy"><span class="eyebrow">HIGHEST OFFICE / MINISTRY ROOT</span><strong>Permanent Secretary</strong><span>Open the ministry's department folders.</span></span><span class="ministry-repository-open">Open folder ${icon('arrow')}</span></button></section>`;
   } else if (!department) {
     content = `<section aria-labelledby="ministry-repository-folders"><div class="section-heading"><h2 id="ministry-repository-folders">Department folders</h2><span class="subtle">Folder names are visible; contents are department-restricted</span></div><div class="ministry-repository-folders">${Object.keys(departmentUnits).map(name => {
@@ -170,16 +167,16 @@ function ministryRepositoryPage() {
       return `<button type="button" class="ministry-repository-folder" data-action="repo-unit" data-department="${escapeHTML(department)}" data-unit="${escapeHTML(name)}"><span class="ministry-repository-folder-top">${icon('folder')}<span>Sub-department</span></span><strong>${escapeHTML(name)}</strong><span class="ministry-repository-folder-detail">${count} accessible document${count === 1 ? '' : 's'}</span><span class="ministry-repository-folder-footer">Open folder ${icon('arrow')}</span></button>`;
     }).join('')}</div></section>`;
   } else {
-    content = `<section aria-labelledby="ministry-repository-documents"><div class="section-heading"><h2 id="ministry-repository-documents">Documents</h2>${button('All sub-departments','repo-back','text-link',`data-level="department" data-department="${escapeHTML(department)}"`)}</div><div class="toolbar ministry-repository-toolbar"><label class="search-field">${icon('search')}<input id="ministry-repository-search" type="search" aria-label="Search this sub-department by title or reference" value="${escapeHTML(state.query)}" placeholder="Search this folder by title or reference..." autocomplete="off"/></label><span class="subtle">Current sub-department only</span></div><div id="ministry-repository-results" aria-live="polite">${ministryRepositoryDocuments()}</div></section>`;
+    content = `<section aria-labelledby="ministry-repository-documents"><div class="section-heading"><h2 id="ministry-repository-documents">Documents</h2>${button('All sub-departments','repo-back','text-link',`data-level="department" data-department="${escapeHTML(department)}"`)}</div><div id="ministry-repository-results" aria-live="polite">${ministryRepositoryDocuments()}</div></section>`;
   }
-  return `<div class="ministry-repository">${breadcrumbs}${heading('THE MINISTRY FILING ROOM',escapeHTML(title),description,button(`${icon('plus')} Start a process`,'go-start-process','btn btn-primary'))}<div class="ministry-repository-context">${icon('shield')}<span>${escapeHTML(currentOfficer.name)} / ${escapeHTML(currentOfficer.role)}</span><strong>${escapeHTML(departmentLabel(ownDepartment))}</strong></div>${fxNotice('Prototype access preview: PS Registry and PS can open all department folders. Departmental officers can open only their own contents; other folder names remain visible. This browser-only demonstration is not production security.')}${content}</div>`;
+  return `<div class="ministry-repository">${breadcrumbs}${heading('THE MINISTRY FILING ROOM',escapeHTML(title),description,button(`${icon('plus')} Start a process`,'go-start-process','btn btn-primary'))}<div class="ministry-repository-context">${icon('shield')}<span>${escapeHTML(currentOfficer.name)} / ${escapeHTML(currentOfficer.role)}</span><strong>${escapeHTML(departmentLabel(ownDepartment))}</strong></div>${fxNotice('Prototype access preview: PS Registry and PS can open all department folders. Departmental officers can open only their own contents; other folder names remain visible. This browser-only demonstration is not production security.')}<div class="toolbar ministry-repository-toolbar"><label class="search-field">${icon('search')}<input id="ministry-repository-search" type="search" aria-label="Search all accessible repository folders" value="${escapeHTML(state.query)}" placeholder="Find a document, reference or minute..." autocomplete="off"/></label><span class="subtle">Search all accessible folders</span></div>${content}</div>`;
 }
 
 function ministryRepositoryDocuments() {
   const department = state.repositoryDepartment;
-  if (!state.repositoryRootOpen || !Object.hasOwn(departmentUnits,department) || !canAccessDepartment(department) || !departmentUnits[department].includes(state.repositoryUnit)) return '';
   const query = (state.query || '').trim().toLowerCase();
-  const records = visibleRecords().filter(record => canAccessRecord(record) && record.department === department && recordUnit(record) === state.repositoryUnit && (!query || [record.title,record.id,record.reference].join(' ').toLowerCase().includes(query)));
+  if (!query && (!state.repositoryRootOpen || !Object.hasOwn(departmentUnits,department) || !canAccessDepartment(department) || !departmentUnits[department].includes(state.repositoryUnit))) return '';
+  const records = visibleRecords().filter(record => canAccessDepartment(record.department) && canAccessRecord(record) && (query ? [record.title,record.id,record.reference,record.summary,record.sender,record.type,...(record.history || []).map(event => event.note)].join(' ').toLowerCase().includes(query) : record.department === department && recordUnit(record) === state.repositoryUnit));
   return recordTable(records);
 }
 
@@ -226,7 +223,13 @@ document.addEventListener('click',event => {
 
 document.addEventListener('input',event => {
   if (event.target.id !== 'ministry-repository-search' || state.page !== 'repository') return;
+  const wasSearching = Boolean((state.query || '').trim());
   state.query = event.target.value;
+  if (wasSearching !== Boolean(state.query.trim())) {
+    render();
+    $('#ministry-repository-search')?.focus({preventScroll:true});
+    return;
+  }
   const results = $('#ministry-repository-results');
   if (results) results.innerHTML = ministryRepositoryDocuments();
 });
@@ -327,7 +330,7 @@ function signatureModal(record) {
   const designation = `${currentOfficer.rank || currentOfficer.role}${currentOfficer.grade ? ` / GL${String(currentOfficer.grade).padStart(2,'0')}` : ''}`;
   showModal('E-sign this document.','Electronic signature design / assigned fictional officer only.',`<div class="fx-signature-layout"><div><p class="eyebrow">THE DOCUMENT YOU ARE ENDORSING</p><div class="draft-source"><strong>${escapeHTML(record.title)}</strong><p>${escapeHTML(record.id)} / ${escapeHTML(departmentLabel(record.department))}</p><span class="badge draft">Prototype signature / not legally binding</span></div>
     <form id="fx-signature-form" data-record="${escapeHTML(record.id)}"><div class="field"><label for="fx-signer">Assigned fictional officer</label><input id="fx-signer" name="signer" value="${escapeHTML(currentOfficer.name)}" readonly/></div><div class="field"><label for="fx-designation">Designation</label><input id="fx-designation" name="designation" value="${escapeHTML(designation)}" readonly/></div><div class="tabs"><button type="button" class="tab active" data-action="fx-signature-mode" data-mode="typed">Type signature</button><button type="button" class="tab" data-action="fx-signature-mode" data-mode="drawn">Draw a sample mark</button></div><div id="fx-typed-panel" class="fx-signature-preview"><strong id="fx-typed-signature" class="fx-written-signature">${escapeHTML(currentOfficer.name)}</strong><small>Typed signature preview</small></div><div id="fx-drawn-panel" hidden><canvas id="fx-signature-canvas" width="640" height="180" aria-label="Draw a fictional sample mark; typed signature is available as an accessible alternative"></canvas>${button('Clear drawing','fx-clear-signature','btn btn-sm')}<p class="subtle">Use a fictional mark, not your real signature.</p></div>${consent('I reviewed this fictional endorsement. Applying it adds a sample signature and trail entry, without a real certificate or identity check.')}</form></div>
-    <aside class="fx-signature-explanation"><p class="eyebrow">SIGNATURE JOURNEY</p><h3>Review. Endorse.<br>Keep the evidence.</h3><ol><li>Inspect the document and its version.</li><li>Select a typed or drawn sample signature.</li><li>Confirm your intention to endorse the demo.</li><li>See the signature on the document and in its history.</li></ol><div class="notice">${icon('shield')}<span>Only the assigned desk can endorse this file. Signing does not approve or change its assignment. This is not PKI, cryptographic signing, biometric verification or an official government signature.</span></div></aside></div>`,`${button('Cancel','close-modal','btn')}${button(`${icon('shield')} Apply sample e-signature`,'fx-signature-submit','btn btn-primary','type="submit" form="fx-signature-form"')}`,true);
+    <aside class="fx-signature-explanation"><p class="eyebrow">SIGNATURE JOURNEY</p><h3>Review. Endorse.<br>Keep the evidence.</h3><ol><li>Inspect the document and its version.</li><li>Select a typed or drawn sample signature.</li><li>Confirm your intention to endorse the demo.</li><li>See the signature on the document and in its history.</li></ol><div class="notice">${icon('shield')}<span>Only the assigned desk can endorse this file. Signing does not approve or change its assignment. Original PDF/Word files remain unchanged. This is not PKI, cryptographic signing, biometric verification or an official government signature.</span></div></aside></div>`,`${button('Cancel','close-modal','btn')}${button(`${icon('shield')} Apply sample e-signature`,'fx-signature-submit','btn btn-primary','type="submit" form="fx-signature-form"')}`,true);
   const context=$('#fx-signature-canvas').getContext('2d');context.lineWidth=3;context.lineCap='round';context.strokeStyle='#153e35';
 }
 function signaturePoint(event,canvas) {const rect=canvas.getBoundingClientRect();return {x:(event.clientX-rect.left)*canvas.width/rect.width,y:(event.clientY-rect.top)*canvas.height/rect.height};}

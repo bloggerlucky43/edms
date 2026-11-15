@@ -15,13 +15,40 @@ function organogramDeskCard(department, title, grade, headingLevel = 4) {
 }
 
 function officerPickerModal() {
-  const branches = [departments[3], departments[0], departments[1], departments[2]];
-  const additionalOfficers = data.users.filter(user => user.id !== officeID(user.department,route.indexOf(user.rank)) && staffRanks.some(rank => rank.title === user.rank));
+  const availableDepartments = [...new Set([centralDepartment, ...data.users.map(user => user.department)])];
+  const officerOptions = department => data.users.filter(user => user.department === department).map(user => `<option value="${escapeHTML(user.id)}"${user.id === currentOfficer.id ? ' selected' : ''}>${escapeHTML(`${user.name} / ${user.rank}${user.grade == null ? '' : ` / GL${String(user.grade).padStart(2, '0')}`}${user.id === currentOfficer.id ? ' (current desk)' : ''}`)}</option>`).join('');
   showModal('Choose a fictional desk', 'Switch office context / no real account authentication', `<div class="organogram-picker">
-    <div class="organogram-picker-intro"><p>Current desk: <strong>${escapeHTML(currentOfficer.name)}</strong> / ${escapeHTML(currentOfficer.rank)} / ${escapeHTML(departmentLabel(currentOfficer.department))}.</p><p>Select an office to open its inbox. Names and records are fictional; switching does not grant real permissions or delegate authority.</p></div>
-    <section aria-labelledby="organogram-picker-central"><div class="organogram-section-heading"><div><p class="eyebrow">CENTRAL OFFICES</p><h3 id="organogram-picker-central">${escapeHTML(departmentLabel(centralDepartment))}</h3></div></div><p class="organogram-picker-note">PS Registry is the intake desk. The Permanent Secretary is the reporting root.</p><ul class="organogram-picker-central"><li>${organogramDeskCard(centralDepartment, 'PS Registry', undefined)}</li><li>${organogramDeskCard(centralDepartment, 'Permanent Secretary', undefined)}</li></ul></section>
-    <div class="organogram-picker-departments">${branches.map((department, index) => `<section aria-labelledby="organogram-picker-department-${index}"><header class="organogram-branch-heading"><p class="eyebrow">DEPARTMENTAL OFFICES</p><h3 id="organogram-picker-department-${index}">${escapeHTML(departmentLabel(department))}</h3></header><ol class="organogram-picker-ranks" aria-label="${escapeHTML(`${departmentLabel(department)} offices by rank`)}">${staffRanks.map(rank => `<li>${organogramDeskCard(department, rank.title, rank.grade)}</li>`).join('')}</ol></section>`).join('')}</div>
-    ${additionalOfficers.length ? `<section><h3>Additional departmental officers</h3><p class="organogram-picker-note">Officers in the staff directory can receive tasks at their assigned rank.</p><div class="organogram-picker-central">${additionalOfficers.map(user => `<article class="organogram-desk"><h4>${escapeHTML(user.name)}</h4><p>${escapeHTML(user.rank)} / GL${String(user.grade).padStart(2,'0')} / ${escapeHTML(departmentLabel(user.department))}</p>${button('Open officer inbox','select-officer','btn organogram-open-desk',`data-id="${escapeHTML(user.id)}"`)}</article>`).join('')}</div></section>` : ''}
-    <p class="organogram-picker-note">Confirmed grades: GL17, GL16, GL15, GL14, GL13, GL12, GL10, GL09 and GL08. No GL11. Assignment is not final approval.</p>
-  </div>`, button('Keep current desk', 'close-modal', 'btn'), true);
+    <div class="organogram-picker-intro"><p>Current desk: <strong>${escapeHTML(currentOfficer.name)}</strong></p><p>${escapeHTML(currentOfficer.rank)} / ${escapeHTML(departmentLabel(currentOfficer.department))}</p></div>
+    <form id="officer-picker-form" aria-describedby="officer-picker-note">
+      <div class="field"><label for="officer-picker-department">Department / central office</label><select id="officer-picker-department" name="department" required autofocus>${availableDepartments.map(department => `<option value="${escapeHTML(department)}"${department === currentOfficer.department ? ' selected' : ''}>${escapeHTML(departmentLabel(department))}</option>`).join('')}</select></div>
+      <div class="field"><label for="officer-picker-officer">Officer / desk</label><select id="officer-picker-officer" name="officer" required aria-describedby="officer-picker-selection">${officerOptions(currentOfficer.department)}</select></div>
+      <p id="officer-picker-selection" class="organogram-picker-selection" role="status"></p>
+      <div class="organogram-picker-actions">${button(`Open inbox ${icon('arrow')}`, 'select-officer', 'btn btn-primary', `data-id="${escapeHTML(currentOfficer.id)}"`)}</div>
+    </form>
+    <p id="officer-picker-note" class="organogram-picker-note">Names and records are fictional. Switching desks does not authenticate an account, grant real permissions or delegate authority. Assignment is not final approval.</p>
+  </div>`, button('Keep current desk', 'close-modal', 'btn'));
+
+  const form = document.getElementById('officer-picker-form');
+  const departmentSelect = form.elements.namedItem('department');
+  const officerSelect = form.elements.namedItem('officer');
+  const openButton = form.querySelector('[data-action="select-officer"]');
+  const selection = form.querySelector('#officer-picker-selection');
+  const updateSelection = () => {
+    const officer = data.users.find(user => user.id === officerSelect.value && user.department === departmentSelect.value);
+    openButton.dataset.id = officer?.id || '';
+    openButton.disabled = !officer;
+    officerSelect.disabled = !officerSelect.options.length;
+    selection.textContent = officer ? `${officer.name} / ${officer.rank} / ${departmentLabel(officer.department)}${officer.grade == null ? ' / Central office' : ` / GL${String(officer.grade).padStart(2, '0')}`}` : 'No officers are available in this office.';
+  };
+  departmentSelect.addEventListener('change', () => {
+    officerSelect.innerHTML = officerOptions(departmentSelect.value);
+    updateSelection();
+  });
+  officerSelect.addEventListener('change', updateSelection);
+  // Keep this selector out of the document-level task submission handlers.
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+  updateSelection();
 }
